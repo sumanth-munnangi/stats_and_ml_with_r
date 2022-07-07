@@ -56,3 +56,4 @@ ggplot(data = df, aes(y))+
 
 log(2)/ log(1.08)
 
+
