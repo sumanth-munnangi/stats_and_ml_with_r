@@ -1,0 +1,247 @@
+---
+title: "Chi - Squared"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r import, include = F}
+library("tidyverse")
+
+```
+
+## Question 1
+
+Q1 A - What does the normal quantile plot indicate about the normality of returns?
+
+```{r Q1A}
+cat("The Q-Q plot suggests that the distribution deviates from normality and also contain outliers")
+
+```
+Q1 B - The table groups all returns that are less than - 0:03 and more than 0:03.
+Why not use more categories to separate very high or low returns?
+
+```{r Q1B}
+cat("If you use many catogories you may end up with low number of observations in each categories. If the number of obsevations is less than five, you can not use Chi- Squared test. Also, False positives will increase as number of categories increase")
+
+```
+Q1 C - Compute the chi-squared test of goodness of fit and its p-value.
+
+
+$H_{0}$ : The daily returns are normally distributed
+
+$H_{1}$ : The daily returns are not normally distributed
+
+```{r Q1C}
+count <- c(18,19,56,128,178,66,23,16)
+
+
+exp_count <- c(pnorm(q = -0.03,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = -0.02,mean = 0.0009874, sd = 0.0151,lower.tail = T) - 
+                 pnorm(q = -0.03,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = -0.01,mean = 0.0009874, sd = 0.0151,lower.tail = T) - 
+                 pnorm(q = -0.02,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = 0.0,mean = 0.0009874, sd = 0.0151,lower.tail = T) - 
+                 pnorm(q = -0.01,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = 0.01,mean = 0.0009874, sd = 0.0151,lower.tail = T) - 
+                 pnorm(q = 0.0,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = 0.02,mean = 0.0009874, sd = 0.0151,lower.tail = T) - 
+                 pnorm(q = 0.01,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = 0.03,mean = 0.0009874, sd = 0.0151,lower.tail = T) - 
+                 pnorm(q = 0.02,mean = 0.0009874, sd = 0.0151,lower.tail = T),
+               pnorm(q = 0.03,mean = 0.0009874, sd = 0.0151,lower.tail = F)
+               )
+
+chi_test <-  chisq.test(x = count, p = exp_count,correct = F)
+
+print(chi_test)
+
+pchisq(q = 49.275,df = 8 -3,lower.tail = F)
+
+cat("With P value at",pchisq(q = chi_test$statistic,df = 8 -3,lower.tail = F), "we have sufficient evidence to the claim that daily stock returns are not normal. We need to reduce the Degrees of freedom as we extimated mean and SD -> 2 parameters")
+
+
+```
+Q1 D - Does the chi-squared test agree with the normal quantile plot?
+
+```{r Q1D}
+
+cat("Yes, the daily stock returns are not normal. That's what the Q-Q plot suggests, so does the P-value from Chi-Squared Goodness of fit test")
+
+```
+Q1 E - What's the advantage of using a normal quantile plot to check for normality?
+The advantage of using the chi-squared test?
+
+```{r Q1E}
+cat("The Q-Q plots can help identify deviations from Normal distributions. In this case even though the Histogram suggests normality, the Q-Q plots clearly indicate the non-normality in daily stock returns.\n The Chi-Squared test gives a formal validation to non-normality identified by Q-Q plots. However, if the sample size is large, The Chisquared Goodness of Fit test becomes super sensitive to deviations from desired distruibutions we should note that  ")
+
+```
+
+## Question 2 
+
+Q2 A- Use an appropriate statistical test to determine if these data indicate that
+trading on some days is better or worse (more or less likely to earn positive
+returns) than any other.
+
+
+$H_{0}$ : Direction and day of the weeks are independent
+
+$H_{1}$ : Direction and day of the weeks are dependent
+
+```{r Q2A}
+
+sm_df <- read.csv("Stock Market.csv")
+
+
+sm_df <- pivot_wider(data = sm_df,names_from = "Market.Direction",values_from = "No..of.Days")
+
+sm_df
+
+number_of_days <- c(rep("Down",41), rep("Down",42), rep("Down",39), rep("Down", 37), rep("Down", 45),
+                   rep("Up", 59),rep("Up", 55), rep("Up", 52), rep("Up",57), rep("Up",52))
+
+days_per_week <-  c(rep("Monday",41), rep("Tuesday",42), rep("Wednesday",39), rep("Thursday", 37), rep("Friday", 45),
+                  rep("Monday", 59),rep("Tuesday", 55), rep("Wednesday", 52), rep("Thursday",57), rep("Friday",52))
+
+sm_exploded_df = data.frame(direction = number_of_days, days_of_week = days_per_week )
+
+chi_test <- chisq.test(sm_exploded_df$direction,sm_exploded_df$days_of_week)
+
+print(chi_test)
+
+cat("With a P-value of",chi_test$p.value,"We do not have sufficient evidence that trading on some days is better or worse")
+
+```
+Q2 B - How does the test used in (a) differ from comparing the proportion positive
+for each day with 0.5?
+
+$H_{0} : P_{positive} = 0.5$
+
+$H_{1} : P_{positive} \ne 0.5$
+
+```{r Q2B}
+
+cat("They are two different tests. If you compare proportion positive with .5 we can only check if probability of positive is same as probability of negatve. \n\nHowever, we want to check if any particular day has a benifit over the other not if probability of market going up is different from probability of market going down.\n\n")
+
+ups <- sm_df$Up
+downs <- sm_df$Down
+names <- c("Monday", "Tuesday","Wednesday",	"Thursday","Friday")
+
+for (i in 1:5){
+  print(names[i])
+  print(chisq.test(x = c(ups[i], downs[i]), p = c(0.5,0.5)))
+  
+}
+
+cat("On Thrusdays there is significant evidence that proportion of positives is not equal to .5 at a 5% significance level")
+
+
+```
+Q2 C - These data only indicate the direction of the market. How does that limit
+the conclusions we might draw?
+
+```{r Q2c}
+cat("We can only tell if a particular day of the week has a higher proportion of positives. However, we can not know how much profit one can make as the magnitude of negatives and positives is not known")
+
+```
+
+## Question 3
+
+Case 1 - Consider "DEGREE", "SPDEG", "PADEG", and "MADEG" columns
+
+$H_{0} : P_{0} = .1235, P_{1} = .2965, P_{2} = .194, P_{3} = .386$
+
+$H_{1}$ : At least one proportion is different from the above
+
+
+```{r Q3}
+
+# Case 1 
+
+
+
+GSS_df <- read.csv("GSS2014.csv")
+
+GSS_C1_DF <- pivot_longer(data = GSS_df[,c("DEGREE", "SPDEG", "PADEG", "MADEG")],
+                          cols = c("DEGREE", "SPDEG", "PADEG", "MADEG"),
+                          names_to = "DEGREE_OF",
+                          values_to = "TYPE")
+
+
+
+mosaicplot(~ DEGREE+BORN, data = GSS_df, 
+           main = "Mosaic Plot", xlab = "DEGREE", ylab = "BORN",color=c(2,4))
+
+GSS_C1_DF <- GSS_C1_DF  %>% mutate(TYPE = case_when(TYPE == 4 ~ 3, 
+                                       TYPE == 3 ~ 3,
+                                       TYPE == 2 ~ 2,
+                                       TYPE == 1 ~ 1,
+                                       TYPE == 0 ~ 0))
+
+GSS_C1_DF <- data.frame(table(GSS_C1_DF[,c("TYPE")]))
+
+GSS_C1_DF
+
+chi_test <- chisq.test(x = (GSS_C1_DF$Freq), p = c(.1235,.2965,.194,.386))
+
+chi_test
+
+cat("With a P-value",chi_test$p.value,"We have significant evidence that General Social Survey in 2014 overrepresented at least one education category")
+
+```
+
+Case 2 - Consider only Degree column (Only respondent)
+
+
+$H_{0} : P_{0} = .1235, P_{1} = .2965, P_{2} = .194, P_{3} = .386$
+
+$H_{1}$ : At least one proportion is different from the above
+
+```{r}
+# Case 2 
+
+GSS_C2_DF <- GSS_df["DEGREE"]
+
+GSS_C2_DF <- GSS_C2_DF  %>% mutate(DEGREE = case_when(DEGREE == 4 ~ 3, 
+                                       DEGREE == 3 ~ 3,
+                                       DEGREE == 2 ~ 2,
+                                       DEGREE == 1 ~ 1,
+                                       DEGREE == 0 ~ 0))
+
+GSS_C2_DF <- data.frame(table(GSS_C2_DF[,c("DEGREE")]))
+
+GSS_C2_DF
+
+chi_test <- chisq.test(x = (GSS_C2_DF$Freq), p = c(.12325,.29625,.19425,.38625))
+
+chi_test
+
+cat("With a P-value",chi_test$p.value,"We have significant evidence that General Social Survey in 2014 overrepresented at least one education category")
+
+```
+
+## Question 4 
+
+
+$H_{0}$ : Degrees and Immigration status are independent 
+
+$H_{1}$ : Degrees and Immigration status are dependent 
+
+```{r}
+GSS_born_df <- na.omit(GSS_df[,c("BORN","DEGREE")])
+
+table(GSS_born_df)
+
+chi_test <- chisq.test(GSS_born_df$BORN,GSS_born_df$DEGREE)
+
+
+chi_test
+
+cat("With a P-value",chi_test$p.value,"We have significant evidence that immigrants' educational attainments are different from those born in the United States")
+
+```
+

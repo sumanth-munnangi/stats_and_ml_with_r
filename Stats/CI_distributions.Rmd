@@ -1,0 +1,593 @@
+---
+title: "Confidence Interval | Distributions"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+
+library("tidyverse")
+library("ggplot2")
+
+```
+
+
+## Question 1
+
+
+```{r Q1}
+WoF_winnings <- seq(0,1000,1) # including 0 and 1000 as well :)
+
+# The theoretical mean and SD of the winnings is just mean of the population 
+
+sprintf("Theoretical mean and Standard Deviation of the winnings are %.2f and %.2f respectively", mean(WoF_winnings,na.rm = F),sd(WoF_winnings))
+
+```
+B) Perform simulating 1 spin, 2 spins, 3 spins, 4 spins, 5 spins, 6 spins, 7 spins,
+8 spins, 9 spins, and 10 spins.
+
+C) Find the sample mean for each replication for each spin category.
+
+```{r Q1 B, C}
+
+# For B and C
+
+# Create a dummy data frame to add columns later 
+sample_means <- data.frame(n_exp =  seq(0,999))  
+
+
+for (j in seq(1,10,1)) { # Run 10 experiments
+  column_name <- paste("Spin",j, sep = "")
+  sample_mean <- c()
+  for (i in seq(0,999)){ # Run 1000 trails in each experiment and append the mean of the trail to the list
+    sample_mean <-  append(x = sample_mean, values =  mean(sample(x = WoF_winnings,size = j, replace=T)))
+  } # The sample_mean will have a list of means for each of the experiment 
+  sample_means[column_name] <- sample_mean # Dump the values into the dummy dataframe for furthur use
+}
+
+sample_means <- sample_means[,seq(2,11)] # Take the relevant columns 
+  
+head(sample_means) # The output :)
+
+
+
+```
+
+D) Find the mean of the sample means of each replication (sample).
+
+E) Find the standard deviation of sample means of each replication (sample).
+
+```{r Q1 D, E}
+#D Just take the Column means 
+m_sample_mean <- colMeans(sample_means)
+#E Aplly SD on each of the column 
+sd_sample_mean <- sapply(X = sample_means,FUN = sd)
+
+#Print the values :)
+
+cat("Mean of Sample means is", round(m_sample_mean,2),"\n")
+
+cat("SD of Sample means is", round(sd_sample_mean,2))
+
+```
+
+F) Plot a histogram for each of the 10 categories of spins.
+
+```{r Q1 F, fig.show= 'hold', fig.width=6, out.width= "33%"}
+
+# Plot the histograms for each of the distributions 
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,1]))+
+  geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,2]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,3]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,4]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,5]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,6]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,7]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,8]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,9]))+
+    geom_histogram(binwidth = 15)
+
+ggplot(data = sample_means, mapping = aes(x = sample_means[,10]))+
+    geom_histogram(binwidth = 15)
+
+cat("As the sample size increases, variability decreases and normality increases")
+
+
+```
+
+G) Find the theoretical standard error for each category of spins.
+
+```{r Q1 G}
+
+# A function to calculate standard error 
+
+se_function <- function(x){
+  return (sd(WoF_winnings)/sqrt(x))
+}
+
+# Run this function to calculate standard error
+
+SE_sample_mean <- sapply(X = seq(1,10,1), FUN = se_function)
+
+# Print the output
+cat("The theoritical Standard error is",round(SE_sample_mean,2))
+
+```
+
+H) Compare the theoretical mean with the mean of sample means found in part
+d above.
+
+```{r Q1 H}
+
+#Print the difference of means 
+
+cat("The difference between theoretical mean and mean of sample means is: \n\n", (m_sample_mean - mean(WoF_winnings)), "\n\nAs the sample size increases the error tends to decrease. The theoritical mean and mean of samples ")
+
+
+```
+I) Compare the theoretical standard error (part g above) with the standard
+deviation of sample means (part e above).
+
+```{r Q1 I}
+# Print the difference between theoretical mean and mean of samples 
+
+cat("The difference between theoretical mean and mean of sample means is: \n\n", (SE_sample_mean-sd_sample_mean), "\n\nAs the sample size increases the error decreases")
+
+
+```
+
+J) Find the probability of winning more than $600 for each spin category.
+
+```{r Q1 J}
+
+# A Function to find probabilities 
+
+find_proba <- function(x,y){
+  return (pnorm(q = 600, mean = x, sd = y,lower.tail = F))
+}
+
+# Create an empty vector
+
+proba_600 <- c()
+
+# append the probabilities to this list 
+
+for (i in seq(1,10,1)){
+  proba_600 <- append(proba_600,find_proba(m_sample_mean[i],sd_sample_mean[i]) )
+} 
+
+cat("The probability of winning more than $600 for each spin category is \n\n",proba_600,"\n\nThe probabilty decreases as sample size increases")
+
+```
+K) Summarize the results in the table below and comment on what you observe.
+
+```{r Q1 K}
+
+# Create the final df
+
+m_sample_means_df <-  t(data.frame("Mean of Sample Mean" = round(m_sample_mean,2)))
+
+cols <- colnames(m_sample_means_df)
+
+rbind(t(data.frame("Theoretical Mean" = rep(mean(WoF_winnings,na.rm = F),10),row.names = cols)),
+      m_sample_means_df,
+      t(data.frame("Theoretical Standard Error" = round(SE_sample_mean,2) ,row.names = cols)),
+      t(data.frame("SD of Sample Means" = round(sd_sample_mean,2), row.names = cols)),
+      t(data.frame("P(winning > $600)" = round(proba_600,2), row.names = cols)))
+
+```
+## Question 2
+
+```{r Q2 Data Exploration}
+# read files and clean the columns
+
+ST_df <- read.csv("SupermarketTrans.csv")
+
+str(ST_df)
+
+ST_df$Revenue <- as.numeric(substring(as.character(ST_df$Revenue),2))
+
+```
+
+```{r Q2 A, echo=T}
+
+cat("1. Mean of Revenue is", round(mean(ST_df$Revenue),2), "\n2. SD of revenue is", round(sd(ST_df$Revenue),2), "\n3. Five point summary of Revenue is", fivenum(ST_df$Revenue),"\n\nClearly the data is varied and looks like its left skewed")
+
+```
+
+```{r Q2 A 2}
+
+# Understand homogeneity across all the columns 
+
+
+head(unique(ST_df[,c(4,14)]) %>% arrange(Gender),6)
+
+head(unique(ST_df[,c(5,14)]) %>% arrange(Marital.Status),6)
+
+head(unique(ST_df[,c(6,14)]) %>% arrange(Homeowner),6)
+
+head(unique(ST_df[,c(8,14)]) %>% arrange(Annual.Income),6)
+
+head(unique(ST_df[,c(9,14)]) %>% arrange(City),6)
+
+# Product related columns 
+
+head(unique(ST_df[,c(12,13,14)]) %>% arrange(Product.Family,Product.Department),6)
+
+
+cat("Gender, Marital.Status, Homeowner, Annual.Income, and City do not split data into Homogeneous groups (Obviously) ","\nThe items in Prduct Category and Product Department do split the data into homogeneous groups, however it's best to choose Product Family to make reasonable number of groups.")
+
+```
+B) Suppose you want to generate a stratied random sample, stratied by prod-
+uct family, and have the total sample size be 250. If you use proportional
+sample sizes, how many transactions should you sample from each of the
+three product families?
+
+```{r Q2 B}
+# Total number of rows 
+
+total_count <- nrow(ST_df)
+
+# Find the % contributions and multiply it by 250
+
+ST_df %>% group_by(Product.Family) %>% count(Product.Family) %>% 
+  mutate(n = round(250*(n/total_count),0)) %>% 
+  arrange(desc(n))
+
+```
+C) Using the sample sizes from part b, generate a corresponding stratified random sample. What are the individual sample means from the three product families? What are the sample standard deviations?
+
+```{r Q2 C}
+
+# take a sample from Food
+ST_df_sample_Food <-  ST_df %>% filter(Product.Family == "Food") %>% sample_n(181)
+
+# SD of Food
+sapply((ST_df_sample_Food[,c(7,15,16)]), sd)
+# Mean of Food
+sapply((ST_df_sample_Food[,c(7,15,16)]), mean)
+
+# Take a sample from Non-Consumable 
+ST_df_sample_Non_Consumable <- ST_df %>% filter(Product.Family == "Non-Consumable") %>% sample_n(47)
+# SD of Non-Consumable
+sapply((ST_df_sample_Non_Consumable[,c(7,15,16)]), sd)
+# Mean of Non-Consumable
+sapply((ST_df_sample_Non_Consumable[,c(7,15,16)]), mean)
+
+
+# Take a sample from Drink 
+
+
+ST_df_sample_Drink <- ST_df %>% filter(Product.Family == "Drink") %>% sample_n(22)
+
+# SD of Sample Drink
+sapply((ST_df_sample_Drink[,c(7,15,16)]), sd)
+# Mean of Sample Drink
+sapply((ST_df_sample_Drink[,c(7,15,16)]), mean)
+
+
+ST_df_sample <- rbind(ST_df_sample_Food, ST_df_sample_Non_Consumable, ST_df_sample_Drink)
+# Final Sample 
+head(ST_df_sample)
+
+# Distribution of Product Family 
+
+ST_df_sample %>% group_by(Product.Family) %>% count(Product.Family) 
+
+```
+
+## Question 3
+
+```{r Q3}
+# Read the data 
+PT_df <- read.csv("PaymentTimes.csv")
+
+str(PT_df)
+
+```
+A) Assuming that the standard deviation of the payment times for
+all payments is 4.2 days, construct a 95% confidence interval estimate to
+determine whether the new billing system was effective. State whether or
+not the billing system was effective.
+
+```{r Q3 A}
+# Mean and SD 
+mean_PT <- mean(PT_df$PayTime)
+sd_pt <- sd(PT_df$PayTime)
+
+# Print the output 
+sprintf("The Mean of sample is %.2f",mean_PT)
+sprintf("The SD of the sample is %.2f", sd_pt)
+
+# Lower Confidence interval 
+LCL <- mean_PT - (qnorm(p = 0.975, mean = 0, sd = 1,lower.tail = T)*(4.2/sqrt(65)))
+# Upper Confidence interval   
+UCL <- mean_PT + (qnorm(p = 0.975, mean = 0, sd = 1 ,lower.tail = T)*(4.2/sqrt(65)))
+
+sprintf("The Lower confidance level: %.2f",LCL)
+
+sprintf("The Upper confidance level: %.2f",UCL)
+
+# Print the output
+sprintf("19.5 on the right side of %.2f (LCL) and %.2f (UCL) intervals with a confidance of 95 %%. The sample contains the mean that is less than 19.5 with the confidance of 95%%. Hence, the billing system was effective",LCL,UCL)
+
+# sprintf("Probability of mean < 19.5 is %.2f which is statistically significant. Hence, the new billing system was effective",pnorm(q = 19.5, mean = mean_PT, sd = 4.2, lower.tail = T))
+
+
+```
+
+```{r Q3 B}
+# Lower Confidence interval 
+LCL <- mean_PT - (qnorm(p = 0.995, mean = 0, sd = 1,lower.tail = T)*(4.2/sqrt(65)))
+# Upper Confidence interval 
+UCL <- mean_PT + (qnorm(p = 0.995, mean = 0, sd = 1,lower.tail = T)*(4.2/sqrt(65)))
+
+# Print the output 
+
+sprintf("19.5 on the right side of %.2f (LCL) and %.2f (UCL) intervals with a confidance of 99 %%. The sample contains the mean that is less than 19.5 with the confidance of 95%%. Hence, the billing system was effective",LCL,UCL)
+
+```
+C) If the population mean payment time is 19.5 days, what is the
+probability of observing a sample mean payment time of 65 invoices less
+than 18.1077 days?
+
+```{r Q3 C}
+# Method one 
+cat("The probability of observing a sample mean payment time of 65 invoices less
+than 18.1077 days", pnorm(q = 18.1077, mean = 19.5, sd = 4.2/sqrt(65), lower.tail = T))
+
+
+# Method two
+z = (18.1077 - 19.5)/(4.2/sqrt(65))
+
+cat("\nThe probability of observing a sample mean payment time of 65 invoices less
+than 18.1077 days", pnorm(q= z, mean = 0, sd = 1, lower.tail = T))
+
+```
+
+
+## Question 4
+
+What proportion of cars can get through the toll booth in less than 3
+minutes?
+
+```{r Q4}
+# This is an exponential distribution 
+
+sprintf("%.4f %% of the cars can pass through the toll booth in less than 3 mins",(pexp(q = 3,rate = 2.7,lower.tail = T))*100)
+
+```
+
+## Question 5
+
+```{r Q5}
+
+dbinom(x = 2, size = 5, prob = pnorm(q = 60,mean = 62,sd = 2))
+
+```
+
+## Question 6
+
+A) What is the probability exactly one of the four audited had a
+charitable deduction of more than $1,000?
+
+```{r Q6 A}
+
+dhyper(x = 1,m = 5,n = 20,k = 4)
+
+```
+B) What is the probability at least one of the audited returns had a
+charitable contribution of more than $1,000?
+
+```{r Q6 B}
+
+1 - dhyper(x = 0, m = 5, n = 20, k = 4)
+
+```
+## Question 7
+
+A) What is the probability that no Mercedes is sold on a particular
+day?
+
+```{r Q7 A}
+dpois(x = 0,lambda = 3)
+
+```
+B) What is the probability that for five consecutive days at least one
+Mercedes is sold?
+```{r Q7 B}
+# hope its "at least one in each day" 
+
+#Probability of at least one = 1- Probability of none 
+
+# This has to happen for 5 consecutive days 
+
+(1-dpois(x = 0, lambda = 3))^5
+
+```
+## Question 8
+
+A) Find the median waiting time until the next alarm.
+```{r Q8 A}
+
+sprintf("Median wait time until the next alarm is %.2f Minutes", log(2,base = exp(1))*2)
+
+```
+B) Find the first quartile of waiting time before the next alarm.
+
+```{r Q8 B}
+
+sprintf("The First Quartile of waiting time before the next alarm is %.2f Seconds",60*qexp(p = .25, rate = .5,lower.tail = T))
+
+```
+
+C) Find the 30th percentile of waiting time until the next alarm.
+
+```{r Q8 C}
+
+sprintf("The 30th percentile of waiting time before the next alarm is %.2f Seconds",60*qexp(p = .3, rate = .5,lower.tail = T))
+
+```
+
+## Question 9 
+
+What is the probability (fraction of successes) of getting this required number of returns from both waves?
+
+```{r Q9}
+# Probability of responding the first time is .55, probability of responding the second time is .3 * .45
+# Total Probability is .55 + .45*.3 = .685
+
+sprintf("The probability of obtaining at least 110 responses is %.2f %%",100*pbinom(q = 109 ,size = 150, prob = .685, lower.tail = F))
+
+```
+## Question 10 
+
+A) What is the probability that a typical customer in this group will
+default and produce a write-off of more than $250 in bad debt?
+
+```{r Q10 A}
+
+# mean = 350, SD = 100
+
+p_needed <-  pnorm(q = 250/.8, mean = 350, sd = 100,lower.tail = F)*0.07
+
+sprintf("The probability that a typical customer in this group will default and produce a write-off of more than $250 in bad debt is %.3f %%", 100*p_needed)
+
+```
+
+B) What are the mean and standard deviation of the number of customers who will meet the description
+in part a?
+
+```{r Q10 B}
+
+sprintf("mean and SD are %.2f and %.2f respectively", 500*p_needed, sqrt(500*p_needed*(1-p_needed)))
+
+```
+C) what is the probability that at least 25 of them will meet the description in part a?
+
+```{r Q10 C}
+
+sprintf("The probability that at least 25 of them will meet the description in part a is %.2f %%", 100*pbinom(q = 24, size = 500,prob = p_needed,lower.tail = F))
+
+```
+## Question 11
+
+A) State the mean and standard deviation.
+
+```{r Q 11 A}
+# 10000 = u - 2*sd
+# 30000 = u + 2*sd
+
+m_1 <- matrix(data = c(1, -2, 1, 2),
+       nrow = 2,
+       byrow = T,
+       dimnames = list(c("EQ_1","EQ_2"),
+                     c("U", "SD"))
+                
+       )
+
+m_2 <- c(10000,30000)
+
+solve(m_1,m_2)
+
+```
+B) Compute the probability of stock-outs for order quantity 15,000; 18,000; 24,000; and 28,000.
+
+```{r}
+
+suggestion_list <- c(15000, 18000,24000, 28000)
+
+q_function <- function(x){
+  pnorm(q = x, mean = 20000,sd = 5000,lower.tail = F)
+}
+
+cat("The probability of stock-outs for order quantity 15,000; 18,000; 24,000; and 28,000 is ", round(sapply(suggestion_list, q_function),3), "respectively")
+
+```
+C) Compute the projected profit for the order quantities 15,000;18,000; 20,000; 24,000; and 28,000 under three scenarios: pessimistic in which sales 10,000 units, most likely case in which sales 20,000 units, and optimistic in which sales 30,000 units.
+
+```{r Q11 C}
+# Print values in non-scientific format
+options("scipen"=100, "digits"=4)
+
+# Create the data frames 
+
+sales_type <- c("Pessimistic", "Likely" , "Optimistic")
+
+sales <- c(10000,20000,30000)
+
+Order_quantity <- c(15000,18000,20000,24000,28000)
+
+#create a dummy data frame to add other rows later 
+projected_profit <- data.frame(sales_type = c("Delete"), sales = c(2500), Order_quantity = c(100000))
+
+sales_df <- data.frame(sales_type,sales)
+
+# Create a complete data frame with all the order quntities 
+for (i in Order_quantity){
+  temp_df <- sales_df %>% mutate(Order_quantity = i)
+  projected_profit <- rbind(projected_profit,temp_df)
+}  
+
+# Take the relevant rows 
+projected_profit <- projected_profit[2:16,]
+
+# rename row numbers 
+rownames(projected_profit) <- 1:nrow(projected_profit)
+
+# A function to calculate profits. Please note all the calculations happen here, and we dont need a column for costs and Total revenue :)
+
+find_profit <- function(sales_x, order_y){
+  ifelse(sales_x>order_y, order_y *(24-16),
+         sales_x*(24-16) + (order_y - sales_x)*(5-16))
+}
+
+# Run the above function to return the profit column 
+
+projected_profit$Profit <- find_profit(projected_profit$sales,projected_profit$Order_quantity)
+
+projected_profit
+
+cat ("The optimal order is 20000. This is very likely and you would make the most money with higher probability. You can also choose to order 18000 to make a marginally closer profits and loose less money in an unfortuante event")
+
+```
+D) One of SuperFun's managers felt that the profit potential was so great that the order quantity should have a 70% chance of meeting demand and only a 30% chance of any stock-outs. What quantity would be ordered under this policy, and what is the projected profit under the three sales
+scenarios?
+
+```{r Q11 D}
+
+new_q_new_P <- qnorm(p = .7, mean = 20000,sd = 5000,lower.tail = T)
+
+```
+
+
+
+```{r, echo=F}
+sprintf("Quantity ordered under this policy is %.0f",new_q_new_P)
+
+cat("\n The profits with the new order are ",find_profit(sales,rep(new_q_new_P,3)))
+
+```
+

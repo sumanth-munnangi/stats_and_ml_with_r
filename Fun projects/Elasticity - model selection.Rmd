@@ -1,0 +1,518 @@
+---
+title: "III Home Work 2 | Group 4"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo= F}
+
+library(readxl)
+library(Hmisc) 
+```
+
+```{r}
+setwd("C:/Users/suman/Documents/Sumanth/Masters Program/Masters at UCD/Program Related/Syllabus/BAX 401 Information, Insight and Impact/HW2/HW2")
+```
+
+
+## Data Description
+
+```{r Clean Data}
+
+multimedia_df <- readxl::read_excel("HW2_MultimediaHW.xlsx")
+colnames(multimedia_df)[2] <- "Sales"
+
+multimedia_df_offline <- multimedia_df[,c(2,4:8)]
+
+multimedia_df_online <- multimedia_df[,c(2,9:15)]
+
+
+setNames(data.frame(sapply(multimedia_df_offline, 
+                           function(y) sum(length(which(is.na(y)))))), 
+         c("Null Count" ))
+
+setNames(data.frame(sapply(multimedia_df_online, 
+                           function(y) sum(length(which(is.na(y)))))), 
+         c("Null Count" ))
+
+
+setNames(data.frame(sapply(multimedia_df_offline, 
+                           function(y) sum(length(which(y == 0))))), 
+         c("Zero Count" ))
+
+setNames(data.frame(sapply(multimedia_df_online, 
+                           function(y) sum(length(which(y == 0))))), 
+         c("Zero Count" ))
+
+summary(multimedia_df_online)
+
+summary(multimedia_df_offline)
+
+```
+
+```{r}
+
+cor(multimedia_df[c(c(2),c(5:8),c(10:11),c(13:15))])
+
+```
+
+
+
+
+## Online Adds
+
+```{r}
+
+online_model_analysis <- function (df) {
+  online_full_model <- lm(Sales ~ ., data = df)
+  
+  print(summary(online_full_model))
+  
+  online_reduced_ind_model <- lm(Sales ~ SocialMedia, data = df)
+  print(summary(online_reduced_ind_model))
+  online_reduced_ind_model <- lm(Sales ~ Portals, data = df)
+  print(summary(online_reduced_ind_model))
+  online_reduced_ind_model <- lm(Sales ~ Search, data = df)
+  print(summary(online_reduced_ind_model))
+  online_reduced_ind_model <- lm(Sales ~ ADV_online, data = df)
+  print(summary(online_reduced_ind_model))
+  
+  print(summary(online_reduced_ind_model))
+  
+  online_reduced_model <- lm(Sales ~ Banner+Search+Newsletter+Retargeting+Portals, data = df)
+  print(summary(online_reduced_model))
+}
+  # Social media is nulls 
+  
+  # ADV_online is repetitive
+
+```
+
+
+```{r}
+online_model_analysis(multimedia_df_online)
+```
+
+
+```{r}
+
+multimedia_df_online_dr <- cbind(multimedia_df_online[c(1)],
+                                 sqrt(multimedia_df_online[c(2:8)]))
+
+online_model_analysis(multimedia_df_online_dr)
+
+```
+
+
+
+
+
+
+## Offline Adds 
+
+```{r}
+
+offline_full_model <- lm(Sales ~ ., data = multimedia_df_offline)
+
+summary(offline_full_model)
+
+offline_reduced_ind_model <- lm(Sales ~ Mailings, data = multimedia_df_offline)
+# offline_reduced_ind_model <- lm(Sales ~ Portals, data = multimedia_df_offline)
+# offline_reduced_ind_model <- lm(Sales ~ Search, data = multimedia_df_offline)
+# offline_reduced_ind_model <- lm(Sales ~ ADV_online, data = multimedia_df_offline)
+
+summary(offline_reduced_ind_model)
+
+offline_reduced_model <- lm(Sales ~ Catalogs_ExistCust+Catalogs_Winback+Catalogs_NewCust+Mailings, data = multimedia_df_offline)
+summary(offline_reduced_model)
+
+# remove total spend 
+
+```
+
+
+```{r}
+
+multimedia_df_dr <- cbind(multimedia_df[c(1:2)], 
+                          sqrt(multimedia_df[3:15]))
+
+multimedia_df_dr
+
+```
+
+```{r}
+
+full_model_explore <- function(df) {
+  full_model <- lm(Sales ~., data = df)
+  
+  print(summary(full_model))
+  
+  reduced_model <- lm(Sales ~ ADV_Total+ADV_Offline+ADV_online+Banner + Search + Newsletter + Retargeting + Portals + Catalogs_ExistCust + Catalogs_Winback + Catalogs_NewCust + Mailings, data = df)
+  
+  print(summary(reduced_model))
+
+}
+  
+```
+
+```{r}
+
+full_model_explore(multimedia_df)
+
+full_model_explore(multimedia_df_dr)
+
+```
+
+
+```{r}
+multimedia_df_dr_log <- cbind(multimedia_df[c(1:2)], 
+                          log(multimedia_df[3:15]))
+
+
+
+is.na(multimedia_df_dr_log) <- sapply(multimedia_df_dr_log, is.infinite)
+
+
+
+multimedia_df_dr_log[is.na(multimedia_df_dr_log)] <- 0
+
+
+```
+
+
+```{r}
+
+full_model_explore(multimedia_df_dr_log)
+
+```
+
+```{r}
+
+
+multimedia_df_dr_log_new <- multimedia_df_dr_log[c(c(5:8),c(11),c(13:15))]
+
+multimedia_df_dr_log_1 <- multimedia_df_dr_log[c(c(2),c(5:8),c(11),c(13:15))]
+
+
+a_list <- lapply(1:(ncol(combn(1:ncol(multimedia_df_dr_log_new), m = 2))), 
+               function(y) multimedia_df_dr_log_new[, combn(1:ncol(multimedia_df_dr_log_new), m = 2)[,y]]) 
+for (i in a_list) {
+  name <- paste(colnames(i[1]),colnames(i[2]))
+  multimedia_df_dr_log_1[name] <- i[c(1)]*i[c(2)]
+}
+
+
+
+multimedia_df_dr_log_1
+
+```
+
+```{r}
+
+
+
+multimedia_df_dr_new <- multimedia_df_dr[c(c(5:8),c(10:11),c(13:15))]
+
+multimedia_df_dr_all <- multimedia_df_dr[c(c(2),c(5:8),c(10:11),c(13:15))]
+
+
+a_list <- lapply(1:(ncol(combn(1:ncol(multimedia_df_dr_new), m = 2))), 
+               function(y) multimedia_df_dr_new[, combn(1:ncol(multimedia_df_dr_new), m = 2)[,y]]) 
+
+for (i in a_list) {
+  name <- paste(colnames(i[1]),colnames(i[2]), sep = "")
+  multimedia_df_dr_all[name] <- i[c(1)]*i[c(2)]
+}
+
+for (i in colnames(multimedia_df_dr_all)[10:37]) {
+  print (i)
+}
+
+multimedia_df_dr_all$Lag_sales<-Lag(multimedia_df_dr_all$Sales,shift=1)
+
+column_names <- colnames(multimedia_df_dr_all)[2:47]
+
+
+```
+
+```{r}
+
+
+multimedia_df_dr_all <- multimedia_df_dr[c(c(2),c(5:8),c(10:11),c(13:15))]
+multimedia_df_dr_all$Lag_sales<-Lag(multimedia_df_dr_all$Sales,shift=1)
+
+multimedia_df_dr_new <- multimedia_df_dr_all[c(2:11)]
+
+cols <- colnames(multimedia_df_dr_all)[2:11]
+
+a_list <- lapply(1:(ncol(combn(1:ncol(multimedia_df_dr_new), m = 2))), 
+               function(y) multimedia_df_dr_new[, combn(1:ncol(multimedia_df_dr_new), m = 2)[,y]]) 
+
+
+for (i in a_list) {
+  cols <- append(cols,paste(colnames(i[1]),colnames(i[2]), sep = " * "))
+}
+
+
+```
+
+
+
+```{r}
+
+
+df_tem <- data.frame(func = "place holder", num_negative_beta = 5, r_squared = 5, adj_r_squared =5, aic=5, bic=5,f = 5, p =0.5)
+
+for (j in (2:55)){
+  comb_col_names <- data.frame(t(combn(x = cols,m = j)))
+  
+  for (i in (1:nrow(comb_col_names))){
+    temp <- as.vector((comb_col_names[i,]))
+    f <- "Sales ~ "
+    for (i in temp){
+      f <- (paste(f, "+",i))
+    }
+    f <- as.formula(f)
+    base_model <- lm(f,data = multimedia_df_dr_all)
+    base_sum <- summary(base_model)
+    
+    num_negative_beta <- sum(which(base_sum$coefficients[c(2:j
+                                                           ),c(1)] <0))
+    f_statistic <- base_sum$fstatistic
+    p_f <- pf(f_statistic[1],f_statistic[2],f_statistic[3],lower.tail=F)
+    attributes(p_f) <- NULL
+    f_statistic <- f_statistic['value']
+    attributes(f_statistic)  <- NULL
+    
+    r_squared <- base_sum$r.squared
+    adj_r_squared <- base_sum$adj.r.squared
+    aic <- AIC(base_model)  
+    bic <- BIC(base_model)
+    
+    df_team <- rbind(df_tem,data.frame(func = as.character(f), 
+                                num_negative_beta = num_negative_beta,
+                                r_squared = r_squared,
+                                adj_r_squared = adj_r_squared, 
+                                aic = aic, 
+                                bic = bic,
+                                f = f_statistic, p =p_f))
+  
+  }
+}
+
+```
+
+
+
+```{r}
+df_tem <- data.frame(func = "place holder", r_squared = 5, adj_r_squared =5, aic=5, bic=5,f = 5, p =0.5)
+
+# te <- list(multimedia_df_dr_all[c(1)],multimedia_df_dr_all[c(2)],multimedia_df_dr_all[c(3)])
+comb_model_syn <- function(df,col_name) {
+  
+  df$Lag_sales<-Lag(df$Sales,shift=1)
+  
+  fm <- as.formula(paste("Sales ~  Lag_sales + Search + Catalogs_ExistCust + Catalogs_Winback + Catalogs_NewCust + Mailings + Newsletter + Retargeting + Portals +",col_name,"-1"))
+  
+  # the_model <- lm(te[[1]][,c(1)] ~ te[[2]][,c(1)]+te[[3]][,c(1)])
+  
+  the_model <- lm(fm, data = df)
+  
+  the_model_summary <- summary(the_model)
+  
+  r_squared <- the_model_summary$r.squared
+  adj_r_squared <- the_model_summary$adj.r.squared
+  
+  
+  aic <- AIC(the_model)  
+  bic <- BIC(the_model)
+  
+  f <- the_model_summary$fstatistic
+  p <- pf(f[1],f[2],f[3],lower.tail=F)
+  attributes(p) <- NULL
+  return (list(fm,r_squared,adj_r_squared,aic,bic,f,p))
+}
+
+
+```
+
+
+```{r}
+for (i in column_names){
+output <- comb_model_syn(df = multimedia_df_dr_all, col_name = i)
+f <- output[6][[1]][1]
+attributes(f) <- NULL
+df_tem <- rbind(df_tem,data.frame(func = as.character(output[1]), 
+                                   r_squared = output[2][[1]], 
+                                   adj_r_squared = output[3][[1]], 
+                                   aic=output[4][[1]], 
+                                   bic=output[5][[1]],
+                                   f=f,
+                                   p=output[7][[1]]))
+}
+
+
+```
+
+```{r}
+# write.csv(df_tem,"all_model_intercept.csv")
+```
+
+
+
+```{r}
+full_model_explore(multimedia_df_dr_log)
+```
+
+```{r}
+
+
+
+multimedia_df_dr_all$Lag_sales<-Lag(multimedia_df_dr_all$Sales,shift=1)
+
+focus_model <- lm (Sales ~ Lag_sales + Search + Catalogs_ExistCust + Catalogs_Winback + Catalogs_NewCust + Newsletter + Retargeting + Portals + Catalogs_ExistCustCatalogs_Winback + Catalogs_ExistCustCatalogs_NewCust + Catalogs_ExistCustSearch + Catalogs_ExistCustNewsletter + Catalogs_ExistCustRetargeting + Catalogs_ExistCustPortals , data = multimedia_df_dr_all)
+
+
+model_sum <- summary(focus_model)
+
+
+
+```
+
+
+```{r}
+
+lambda <- model_sum$coefficients[c("Lag_sales"),c("Estimate")]
+
+names <- rownames(model_sum$coefficients)
+
+names <- names[3:15]
+
+df_temp_elasticity <- data.frame(name = "test", elasticity_val = 5, beta = 5, mean_val = 5)
+
+for (i in names) {
+  beta <- model_sum$coefficients[c(i),c("Estimate")]
+  mean_values <- mean(multimedia_df_dr_all[,c(i)])
+  elasticity_val <- (beta/((1-lambda)*mean_values))
+  df_temp_elasticity <- rbind(df_temp_elasticity, data.frame(name = i, 
+                                                             elasticity_val = elasticity_val,
+                                                             beta = beta,
+                                                             mean_val = mean_values))
+}
+
+```
+
+
+
+```{r}
+df_temp_elasticity
+model_sum
+
+```
+
+```{r}
+
+write.csv(df_temp_elasticity,"elasticity.csv")
+
+```
+
+
+
+```{r}
+
+
+multimedia_df_dr_all$Lag_sales<-Lag(multimedia_df_dr_all$Sales,shift=1)
+
+focus_model <- lm (Sales ~ Lag_sales + Search + Catalogs_ExistCust + Catalogs_Winback + Catalogs_NewCust + Newsletter + Retargeting + Portals + Catalogs_ExistCustCatalogs_Winback + Catalogs_ExistCustCatalogs_NewCust + Catalogs_ExistCustSearch + Catalogs_ExistCustNewsletter + Catalogs_ExistCustRetargeting + Catalogs_ExistCustPortals , data = multimedia_df_dr_all)
+
+
+model_sum <- summary(focus_model)
+
+
+```
+
+```{r}
+cor(multimedia_df[c(c(2),c(5:8),c(10:11),c(13:15))])
+```
+
+
+```{r}
+
+model_sum <- summary(lm(Sales ~ Lag_sales + Catalogs_ExistCust  + Catalogs_NewCust + Catalogs_Winback + Retargeting + Portals , data = multimedia_df_dr_all))
+
+AIC(lm(Sales ~ Lag_sales + Catalogs_ExistCust  + Catalogs_NewCust + Catalogs_Winback + Retargeting + Portals , data = multimedia_df_dr_all))
+
+
+model_sum <- summary(lm(Sales~Lag_sales+Search+Catalogs_ExistCust+Catalogs_Winback+Catalogs_NewCust+Mailings+Newsletter+Retargeting+Portals+Catalogs_ExistCustCatalogs_Winback ,  data = multimedia_df_dr_all))
+
+AIC(lm(Sales~Lag_sales+Search+Catalogs_ExistCust+Catalogs_Winback+Catalogs_NewCust+Mailings+Newsletter+Retargeting+Portals+Catalogs_ExistCustCatalogs_Winback ,  data = multimedia_df_dr_all))
+
+```
+
+
+```{r}
+lambda <- model_sum$coefficients[c("Lag_sales"),c("Estimate")]
+
+names <- rownames(model_sum$coefficients)
+
+names <- names[3:11]
+
+df_temp_elasticity <- data.frame(name = "test", elasticity_val = 5, beta = 5, mean_val = 5)
+
+for (i in names) {
+  beta <- model_sum$coefficients[c(i),c("Estimate")]
+  mean_values_y <- mean(multimedia_df_dr_all[,c(1)])
+  mean_values_x <- sqrt(mean(multimedia_df_dr_all[,c(i)]))
+  elasticity_val <- ((beta*mean_values_x)/(2*(1-lambda)*mean_values_y))
+  
+  df_temp_elasticity <- rbind(df_temp_elasticity, data.frame(name = i, 
+                                                             elasticity_val = elasticity_val,
+                                                             beta = beta,
+                                                             mean_val = mean_values))
+}
+```
+
+
+```{r}
+
+model_sum
+
+```
+
+
+```{r}
+write.csv(df_temp_elasticity, "elasticity_final_enhanced.csv")
+```
+
+
+```{r}
+X<-multimedia_df[c(c(2),c(5:8),c(10:11),c(13:15))]
+library(corpcor)
+cor2pcor(cov(X))
+
+```
+`
+```{r}
+library(ppcor)
+to_dwnload <- pcor(X, method = "pearson")
+
+
+```
+
+
+```{r}
+write.csv(data.frame(to_dwnload), "pvals_corr.csv")
+```
+
+```{r}
+model_sum
+```
+
+
+

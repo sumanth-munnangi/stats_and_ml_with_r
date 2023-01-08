@@ -1,0 +1,1290 @@
+---
+title: "EDA"
+author: "Sumanth Munnangi"
+date: '2022-08-09'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include= FALSE}
+
+
+library(dplyr)
+library(psych)
+library(ggplot2)
+library(stringr)
+library(gmodels)
+library(patchwork)
+library(corrplot)
+
+```
+
+## Question 1
+
+```{r Question 1}
+
+
+
+dow_df <- as.data.frame(read.csv("Dow.csv"))
+
+process_dow_df <- function(dow_df){
+  
+  # This function cleans the data frame so we can perform our analysis
+  # dow_df the data frame with monthly closing values of DOW 
+  
+  # Remove the "," character from the string and convert the Closing.Values to numeric
+  dow_df$Closing.Values <- as.numeric(gsub(',','',dow_df$Closing.Values))
+  
+  # Create a lag column to easily calculate the monthly % change
+  dow_df$lag_closing_values <-  (lag(x = dow_df$Closing.Values, n = 1))
+  
+  # calculate the monthly change in %
+  dow_df$returns_per_month <- round(100*((dow_df$Closing.Values - 
+                                            dow_df$lag_closing_values) 
+                                         / dow_df$lag_closing_values),3)
+  
+  # Drop the lag_closing_values column
+  dow_df_clean <- dow_df[,! (names(dow_df) %in% c('lag_closing_values'))]
+  
+  # return dow_df_clean
+  return (dow_df_clean)
+}
+
+# call the process_dow_df function
+dow_df <- process_dow_df(dow_df = dow_df)
+
+
+head(dow_df)
+
+```
+
+a) Compute the average Dow return over the period given on the dataset.
+
+```{r Q1 a}
+# From slide 29 in Topics in EDA 
+
+geometric_mean_rate <- ((dow_df$Closing.Values[860]/
+                                 dow_df$Closing.Values[1])^(1/859) - 1)*100
+  
+sprintf("DOW's average growth is %.2f%% per month (Compounds monthly).",geometric_mean_rate)
+
+```
+b) Plot a histogram and intuitively comment on whether or not the
+returns are normally distributed.
+
+
+```{r Q1 b}
+defaultW <- getOption("warn") 
+
+# Remove warnings 
+options(warn = -1)
+
+# Using ggplots
+
+ggplot(data = dow_df, mapping = aes(x = returns_per_month))+
+  geom_histogram(binwidth = 1.3, col = 'grey')+
+  ggtitle("DOW return over months")+
+  labs(x = "Return over months in %", y = "Frequencies")
+
+sprintf("The returns are normally distributed with a few outliers (Based on the Histogram)")
+
+options(warn = defaultW)
+```
+C. Do the returns adhere to the Empirical Rule? Verify this using
+the Empirical Rule like the code for In-class Exercise.
+
+```{r}
+# Calculate the Mean of returns. We need the AM here
+AM_returns <- round(mean(dow_df$returns_per_month, na.rm = T),3)
+
+
+# Calculate the Standard Deviation
+SD_returns <- round(sd(dow_df$returns_per_month, na.rm = T),3)
+
+# total_months 
+total_months <- length(dow_df$returns_per_month)
+
+empirical_rule <- function(num_sd,mean_return,sd_return, total_months){
+  sd_upper_limit <- mean_return + num_sd*sd_return
+  sd_lower_limit <- mean_return - num_sd*sd_return
+  
+  percent_within_sd <- round((100*(length(which(dow_df$returns_per_month>= sd_lower_limit &
+                                                  dow_df$returns_per_month <= sd_upper_limit)))
+                              /total_months), 3)
+
+  sprintf("The amount of data under %.0d SD range from mean is %.2f%%",num_sd,percent_within_sd)
+}
+
+empirical_rule(num_sd = 1, 
+               mean_return = AM_returns, 
+               sd_return = SD_returns, 
+               total_months = total_months)
+
+empirical_rule(num_sd = 2, 
+               mean_return = AM_returns, 
+               sd_return = SD_returns, 
+               total_months = total_months)
+
+empirical_rule(num_sd = 3, 
+               mean_return = AM_returns, 
+               sd_return = SD_returns, 
+               total_months = total_months)
+
+sprintf("The returns follow Empirical Rule.")
+
+cat("Five number summary of Monthly returns is", fivenum(dow_df$returns_per_month))
+
+```
+D. Plot a boxplot of returns and the five-number summary. Interpret
+the first, second, and third quartiles.
+
+```{r Q1 D}
+defaultW <- getOption("warn") 
+
+# Remove warnings 
+options(warn = -1)
+
+# Boxplot using ggplot2 
+
+ggplot(data = dow_df, mapping = aes(x = '', y= returns_per_month))+
+  geom_boxplot()+
+  coord_flip()+
+  xlab("")+
+  ylab("Monthly returns")
+
+options(warn = defaultW)
+
+# find quartiles 
+Q1 <- quantile(dow_df$returns_per_month, 0.25, na.rm = T) ## First quartile
+Q2 <- quantile(dow_df$returns_per_month, 0.50, na.rm = T) ## Second quartile
+Q3 <- quantile(dow_df$returns_per_month, 0.75, na.rm = T) ## Third quartile
+IQR <- IQR(dow_df$returns_per_month, na.rm = T) ## IQR
+
+# Insights 
+sprintf("The first Quartile is at %.3f %% (25 %% of months have returns that are below %.3f %%",Q1,Q1)
+sprintf("The second Quartile is at %.3f %% (50 %% of months have returns that are below %.3f %%",Q2,Q2)
+sprintf("The third Quartile is at %.3f %% (25 %% of months have returns that are below %.3f %%",Q3,Q3)
+sprintf("The middle 50%% of returns has a variation of %.3f %%",IQR)
+
+```
+E. Identify the mild and extreme outlier returns using the IQR.
+Include whether each monthly return is a mild, an extreme outlier, or not
+an outlier. Sort the results displaying the outliers first.
+
+```{r Q1 E}
+# Mild Outlier -> values that are more than |1.5*IQR| and less than |3*IQR| is considered Mild Outlier
+# Extreme outlier -> Values that are more than |3*IQR| is considered Extreme Outlier
+
+outlier_detection <- function( df, Q1, Q3, outlier_weigth, IQR){
+  point_lower <- Q1 - outlier_weigth*IQR
+  point_upper <- Q3 + outlier_weigth*IQR
+  ifelse((outlier_weigth >= 3),
+         return (df[which(df <= point_lower | df >= point_upper)]),
+         return (df[which((df >= Q1-3*IQR & df <= point_lower) | (df >= point_upper &
+                                                                    df <= Q3 + 3*IQR))]))
+}
+
+
+outlier_detection(df = dow_df$returns_per_month,
+                  Q1 = Q1,
+                  Q3 = Q3,
+                  outlier_weigth = 1.5,
+                  IQR = IQR)
+
+outlier_detection(df = dow_df$returns_per_month,
+                  Q1 = Q1,
+                  Q3 = Q3,
+                  outlier_weigth = 3,
+                  IQR = IQR)
+
+
+outlier_flag <- function (x, Q1, Q3, IQR){
+  ifelse((((x <= Q1-1.5*IQR) & (x >= Q1 -3*IQR)) | ((x >= Q3 + 1.5*IQR) & (x <= Q3 + 3*IQR)))
+         ,"Mild Outlier",
+         ifelse(((x <= Q1 -3*IQR) | (x >= Q3 + 3*IQR)),
+                "Extreme Outlier", "Not an Outlier"))
+}
+
+dow_df$outlier_flag <- outlier_flag(x = dow_df$returns_per_month,Q1 = Q1, Q3 = Q3,IQR = IQR)
+
+dow_df <- dow_df %>% arrange((outlier_flag)) %>% arrange(returns_per_month)
+
+head(dow_df)
+
+
+temp <- dow_df %>% group_by(outlier_flag) %>% count(outlier_flag)
+temp
+
+```
+
+## Question 2
+
+```{r Q2 Clean}
+Melvyl_df <- read.csv(file = "Melvyl.csv")
+
+# Clean data -> Select the relevant columns
+Melvyl_df <- Melvyl_df %>% select(Customer,
+                                  Type.of.Customer,
+                                  Items,
+                                  Net.Sales, 
+                                  Method.of.Payment,
+                                  Gender,
+                                  Marital.Status,
+                                  Age)
+head(Melvyl_df)
+
+str(Melvyl_df)
+
+```
+A) Frequency distributions for each of the key variables: number of
+items purchased, net sales, method of payment, gender, marital status, and
+age.
+
+```{r Q2 A, fig.width = 8, fig.height= 6}
+
+defaultW <- getOption("warn") 
+
+# Remove warnings 
+options(warn = -1)
+
+# Using ggplots
+
+P1 <- ggplot(data = Melvyl_df, mapping = aes(x = Net.Sales))+
+  geom_histogram(binwidth = 10, col = 'grey')+
+  ggtitle("The Net.Sales are right skewed with a lot \n of outliers (Based on the Histogram)")+
+  labs(x = "Net.Sales ", y = "Frequencies")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+P2 <- ggplot(data = Melvyl_df, mapping = aes(x = Items))+
+  geom_histogram(binwidth = 1, col = 'grey')+
+  ggtitle("The Items purchased are right skewed \n with a lot of outliers")+
+  labs(x = "Items", y = "Frequencies")+
+  theme(plot.title = element_text(hjust = 0.5))
+  # wrap_labs()
+
+
+
+
+P3 <- ggplot(data = Melvyl_df, mapping = aes(x = Age))+
+  geom_histogram(binwidth = 5, col = 'grey')+
+  ggtitle("The ages are normally distributed with \n a few outliers (Based on the Histogram)")+
+  labs(x = "Age", y = "Frequencies")+
+  theme(plot.title = element_text(hjust = 0.5))
+  # wrap_labs()
+
+P1 + P2 + P3 + plot_layout(ncol = 2)
+
+
+options(warn = defaultW)
+
+Total_values <- dim(Melvyl_df)[1]
+
+temp <- Melvyl_df %>% 
+  group_by(Type.of.Customer) %>%
+  summarise(Frequency = n()) %>% 
+  mutate(Relative_Frequency = (Frequency/Total_values)) %>% arrange(desc(Frequency))
+
+temp 
+
+print("Promotion seems to be working great as 70% of the coustomers are promotional (New)")
+
+temp <- Melvyl_df %>% 
+  group_by(Method.of.Payment) %>%
+  summarise(Frequency = n()) %>% 
+  mutate(Relative_Frequency = (Frequency/Total_values)) %>% arrange(desc(Frequency))
+
+temp
+
+temp <- Melvyl_df %>% 
+  group_by(Gender) %>%
+  summarise(Frequency = n()) %>% 
+  mutate(Relative_Frequency = (Frequency/Total_values)) %>% arrange(desc(Frequency))
+
+temp
+print("Most of the customers identify as Females (93% of the sample data)")
+
+temp <- Melvyl_df %>% 
+  group_by(Marital.Status) %>%
+  summarise(Frequency = n()) %>% 
+  mutate(Relative_Frequency = (Frequency/Total_values)) %>% arrange(desc(Frequency))
+
+temp
+
+print("Most of the Customers are Married (84% of the sample data)")
+
+```
+```{r Q2 B}
+temp <- Melvyl_df %>% select (Type.of.Customer, Net.Sales) %>% 
+  mutate(Net.Sales = cut(Net.Sales,breaks = 10))
+
+xtabs(~temp$Type.of.Customer + temp$Net.Sales)
+
+cat(" 1. Customers due to promotions exceed regular customers in each of the buckets \n 2. All the spends above 178 are done by new customers with promotion offers \n 3. We need to consider the margins or profits along with customers retained from this promotional campaign")
+
+```
+```{r r Q2 C 1}
+# Descriptive statistics on Sales 
+
+cat("The five number summary of Net Sales is",fivenum(Melvyl_df$Net.Sales))
+
+ggplot(data = Melvyl_df, mapping = aes(x = '', y= Net.Sales))+
+  geom_boxplot()+
+  coord_flip()+
+  ggtitle("Box plot of Net Sales :)")+
+  xlab("")+
+  ylab("Net Sales")
+
+```
+
+
+```{r Q2 C 2, fig.width = 12, fig.height= 14 }
+
+
+P1 <- ggplot(data = Melvyl_df, aes(x = Marital.Status, y = Net.Sales)) +
+  geom_col() +
+  labs(title = "Married Customers spend more than Singles\n (Obvious as most of customers are married)",
+       x = "Marital Status",
+       y = "Net Sales")+
+  theme(plot.title = element_text(hjust = 0.5))
+  
+P2 <- ggplot(data = Melvyl_df, aes(fill = Gender,x = Marital.Status, y = Net.Sales)) +
+  geom_col(position = "fill") +
+  labs(title = "Females drive the sales irrespective of their marital status \n (Only based on visual representation)",
+       x = "Marital Status",
+       y = "% of net sales")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+P3 <- ggplot(data = Melvyl_df, aes(x = reorder(Method.of.Payment, -Net.Sales, sum),
+                                   y = Net.Sales)) +
+  geom_col() +
+  labs(title = "Most Amount is paid through Proprietary cards",
+       x = "Method of Payment",
+       y = "Net Sales")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+P4 <- ggplot(data = Melvyl_df, aes(fill = Type.of.Customer,x = Method.of.Payment, y = Net.Sales)) +
+  geom_col(position = "fill") +
+  labs(title = "All the sales via Discover cards are from Regular Customers",
+       x = "Method of Payment",
+       y = "% of net sales")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+P5 <- ggplot(data = Melvyl_df, aes(fill = Gender,x = Method.of.Payment, y = Net.Sales)) +
+  geom_col(position = "fill") +
+  labs(title = "Males seem to transact with non-premium cards :(\n (Only based on this visual)",
+       x = "Method of Payment",
+       y = "% of net sales")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+P6 <- ggplot(data = Melvyl_df, aes(fill = Gender,x = Type.of.Customer, y = Net.Sales)) +
+  geom_col(position = "fill") +
+  labs(title = "Promotion had similar impact on both the genders",
+       x = "Type of Customer",
+       y = "% of net sales")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+P1 + P2 + P3 + P4 + P5 + P6 + plot_layout(ncol = 2)
+
+```
+
+
+# Question 3 
+
+```{r Q3 Data Processing}
+smt_df <- read.csv("SuperMarketTransactions.csv")
+
+
+str(smt_df)
+# We need to clean the data (Revenue Column has $)
+
+smt_df$Revenue <- as.numeric(substring(as.character(smt_df$Revenue),2))
+
+
+```
+
+
+A. Using these data, create side-by-side box plots for revenues broken
+down by state or province. Are these distributions essentially symmetric or
+skewed?
+
+```{r Q3 A}
+
+# Check the distinct City values 
+unique(smt_df$State.or.Province)
+
+# Boxplots for each of the State or Province
+
+create_boxplot <- function(df, xlab = "State Or Province", ylab = "Revenue") { 
+  boxplot(df$Revenue~df$State.or.Province,
+          horizontal = F,
+          xlab = "State Or Province",
+          ylab = "Revenue")
+}
+
+create_boxplot(smt_df)
+
+sprintf("These distributions are identical to an extent, and all of them are right Skewed")
+
+
+```
+B. Note that these box plots include revenues from countries besides
+the United States. Do whatever it takes to create side-by-side box plots of
+revenue for only states within the United States.
+
+```{r}
+
+smt_df <- smt_df %>% mutate(Country = ifelse((State.or.Province %in% 
+                                                   c("Veracruz", "Yucatan",
+                                                     "Zacatecas", "DF", "Jalisco",
+                                                     "Guerrero")),
+                                            "Mexico", ifelse((State.or.Province %in% c("BC")), "Canada",
+                                                             "USA")))
+
+
+smt_df_USA <- smt_df[which(smt_df$Country == 'USA'),]
+
+unique(smt_df_USA$Country)
+
+# Boxplots for each of the US State or Provinc
+
+
+create_boxplot(df =  smt_df_USA, xlab = "US State or Province")
+
+
+
+```
+
+C. Summarize the total revenue by state.
+
+```{r Q3 C}
+
+# group by State.or.Province and summarize Revenue
+
+State_Province_rev <- smt_df %>% 
+  select(State.or.Province, Revenue) %>% 
+  group_by(State.or.Province) %>%
+  summarise(Revenue = sum(Revenue)) %>%
+  arrange(desc(Revenue))
+
+State_Province_rev
+
+sprintf("All US states are top Revenue generators")
+
+```
+
+D. Show total revenue by product category.
+
+
+
+```{r}
+# group by Product Category  and summarize Revenue
+
+Product_Category_rev <- smt_df %>% 
+  select(Product.Category, Revenue) %>% 
+  group_by(Product.Category) %>%
+  summarise(Revenue = sum(Revenue)) %>%
+  arrange(desc(Revenue))
+
+Product_Category_rev
+
+sprintf("Vegetables and Snack foods generate higher revenue compared to the rest of the categories")
+
+```
+E. Show the number of transactions per state.
+
+```{r Q3 E}
+# group by State or Province  and summarize Revenue
+
+State_Province_trx <- smt_df %>% 
+  select(State.or.Province) %>% 
+  group_by(State.or.Province) %>%
+  count(State.or.Province) %>%
+  arrange(desc(n))
+
+State_Province_trx
+
+sprintf("US States contribute to highest number of transactions")
+
+```
+f) Proportion of shoppers who have more than one child.
+
+```{r Q3 F}
+# get the total number of Customers 
+
+total_customers <- length(unique(smt_df$Customer.ID))
+
+Children_mix <- smt_df %>% 
+  select(Customer.ID, Children) %>% # Select Children and Customer ID
+  mutate(Children = ifelse(Children > 1, "> 1 Children",
+                           "<= 1 Children")) %>% # Create a flag 
+  group_by(Customer.ID) %>% # Group by customer ID and get distinct Children (Hopefully there is only one flag per Customer ID)
+  distinct(Children) %>% 
+  group_by(Children) %>% # Calculate the mix
+  count(Children) %>%
+  mutate(n = (n/total_customers)*100)
+
+Children_mix
+
+sprintf("70.35 %% of Customers have more than one child")
+```
+G) Total revenue for January and February 2016. Show your sum-
+mary in one view, which means you should not show January 2016 revenue
+and February 2016 review in separate result sets.
+
+```{r Q3 G}
+
+# There is no January and February months in 2016 so taking 2017
+temp <- smt_df
+
+temp[c('month','day','year')] <-  str_split_fixed(smt_df$Purchase.Date,"/",3)
+
+temp <- temp %>% filter ((month %in% c("1", "2")) & (year == "2017") ) %>% 
+  select(month, year, Revenue) %>%
+  group_by(month,year) %>%
+  summarise(Revenue = sum(Revenue),.groups = 'keep') %>% 
+  arrange(desc(Revenue))
+
+temp 
+
+sprintf("Revenue in January and February of 2017 is $ 3500.36 and $ 4348.49 respectively")
+```
+H) Create a crosstab table showing the relationship between gender
+and product family.
+
+```{r Q3 H}
+CrossTable(smt_df$Gender,smt_df$Product.Family)
+
+```
+I) Proportion of shoppers who are single and own a home.
+
+```{r Q3 I}
+
+total_customers <- length(unique(smt_df$Customer.ID))
+
+Marital_home_mix <- smt_df %>% 
+  select(Customer.ID, Marital.Status, Homeowner) %>% # Select Marital Status and Home owner flag
+  group_by(Customer.ID) %>% # Group by customer ID and get distinct Children (Hopefully there is only one flag per Customer ID)
+  distinct(Marital.Status,Homeowner) %>% 
+  group_by(Marital.Status, Homeowner) %>% # Calculate the mix
+  count(Marital.Status) %>%
+  mutate(n = (n/total_customers)*100) 
+
+Marital_home_mix
+
+sprintf("The proportion of coustomers that are Single and own a house is %.2f%%",Marital_home_mix[4,3])
+
+
+
+```
+J) Show the distribution (frequency and percentage) of gender.
+
+```{r}
+number_of_rows <- length(smt_df$Gender)
+
+gender_distribution <- smt_df %>% select (Gender) %>% 
+  group_by(Gender) %>% count(Gender) %>% mutate (Gender_mix_in_percent = round((n/number_of_rows)*100,2))
+
+gender_distribution
+
+sprintf("Females and Males contribute to %.f %% and %.f %% of transactions respectively", gender_distribution[1,3], gender_distribution[2,3])
+```
+## Question 4 
+
+```{r}
+CPM_df <- read.csv("CellphoneMarket.csv")
+
+str(CPM_df)
+
+# Understand the data types of the fields 
+
+```
+A. How these variables are distributed
+
+```{r Q4 A}
+
+# A function to check for empirical rule
+
+empirical_rule_new <- function(num_sd,reference,sd_return, total_months, column_name){
+  sd_upper_limit <- reference + num_sd*sd_return
+  sd_lower_limit <- reference - num_sd*sd_return
+  
+  percent_within_sd <- round((100*(length(which(CPM_df[,column_name]>= sd_lower_limit &
+                                                  CPM_df[,column_name] <= sd_upper_limit)))
+                              /total_months), 3)
+
+  sprintf("The amount of data under %.0d SD range from mean is %.2f%%",num_sd,percent_within_sd)
+}
+
+# A function to check for the distribution
+
+understand_distribution_measure <- function(df,column_name){
+  total_entries <- length(df[,column_name])
+  mean_of_distribution <- mean(df[,column_name])
+  SD_of_distribution <- sd(df[,column_name])
+  cat(sprintf("Mean and SD is %.2f and %.2f respectively \n", 
+          mean_of_distribution, 
+          SD_of_distribution))
+  Q1 <- quantile(df[,column_name], 0.25, na.rm = T) ## First quartile
+  Q3 <- quantile(df[,column_name], 0.75, na.rm = T) ## First quartile
+  
+  cat("Five point summary of", column_name,"is",fivenum(df[,column_name]),"\n" )
+  cat(empirical_rule_new(num_sd = 1, 
+               reference = mean_of_distribution, 
+               sd_return = SD_of_distribution, 
+               total_months = total_entries,
+               column_name = column_name),"\n")
+  
+  cat(empirical_rule_new(num_sd = 2, 
+               reference = mean_of_distribution, 
+               sd_return = SD_of_distribution, 
+               total_months = total_entries,
+               column_name = column_name),"\n")
+  
+  cat(empirical_rule_new(num_sd = 3, 
+               reference = mean_of_distribution, 
+               sd_return = SD_of_distribution, 
+               total_months = total_entries,
+               column_name = column_name))
+  
+}
+
+
+```
+
+Account Length - Is Normally Distributed (follows Empirical Rule and the Histogram is normally distributed)
+
+```{r}
+# Call the function to get the summary 
+understand_distribution_measure(CPM_df, column_name = 'Account.Length')
+# Plot histogram
+ggplot(data = CPM_df, mapping = aes(x=Account.Length))+
+  geom_histogram(binwidth = 5, col = 'grey')
+
+```
+
+Voice Mail Messages - is Normally distributed (follows Empirical Rule)
+
+```{r}
+# Call the function to get the summary 
+understand_distribution_measure(CPM_df, column_name = "Voice.Mail.Messages")
+# Plot the summary
+ggplot(data = CPM_df, mapping = aes(x=Voice.Mail.Messages))+
+  geom_histogram(binwidth =1.5, col = 'grey')
+
+```
+
+Day.Minutes - is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary 
+understand_distribution_measure(CPM_df, column_name = "Day.Minutes")
+# Plot the histogram
+ggplot(data = CPM_df, mapping = aes(x=Day.Minutes))+
+  geom_histogram(binwidth = 9, col = 'grey')
+```
+Day.Calls - is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary 
+understand_distribution_measure(CPM_df, column_name = "Day.Calls")
+# Plot the histogram
+ggplot(data = CPM_df, mapping = aes(x=Day.Calls))+
+  geom_histogram(binwidth = 4, col = 'grey')
+```
+Day.Charge is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary 
+understand_distribution_measure(CPM_df, column_name = "Day.Charge")
+# Plot the histogram 
+ggplot(data = CPM_df, mapping = aes(x=Day.Charge))+
+  geom_histogram(binwidth = 2.4, col = 'grey')
+```
+
+Evening.Minutes is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary 
+understand_distribution_measure(CPM_df, column_name = "Evening.Minutes")
+# Plot the Histogram
+ggplot(data = CPM_df, mapping = aes(x=Evening.Minutes))+
+  geom_histogram(binwidth = 10, col = 'grey')
+
+```
+
+Evening.Calls is Normally distributed (follows Empirical Rule and Normally distributed)
+
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "Evening.Calls")
+# Plot the distribution 
+ggplot(data = CPM_df, mapping = aes(x=Evening.Calls))+
+  geom_histogram(binwidth = 6, col = 'grey')
+```
+
+Night.Minutes is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "Night.Minutes")
+# Plot a histogram 
+ggplot(data = CPM_df, mapping = aes(x=Night.Minutes))+
+  geom_histogram(binwidth = 9, col = 'grey')
+```
+Night.Calls is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "Night.Calls")
+# Plot a histogram 
+ggplot(data = CPM_df, mapping = aes(x=Night.Calls))+
+  geom_histogram(binwidth = 3, col = 'grey')
+```
+
+Night.Charge is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "Night.Charge")
+# Plot a histogram
+ggplot(data = CPM_df, mapping = aes(x=Night.Charge))+
+  geom_histogram(binwidth = .5, col = 'grey')
+```
+
+International.Minutes is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "International.Minutes")
+# Plot a histogram
+ggplot(data = CPM_df, mapping = aes(x=International.Minutes))+
+  geom_histogram(binwidth = .5, col = 'grey')
+```
+
+International.Charge is Normally distributed (follows Empirical Rule and Normally distributed)
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "International.Charge")
+# Plot a histogram 
+ggplot(data = CPM_df, mapping = aes(x=International.Charge))+
+  geom_histogram(binwidth = .2, col = 'grey')
+
+```
+
+Customer.Service.Calls is right skewed 
+
+```{r}
+# Call the function to get the summary
+understand_distribution_measure(CPM_df, column_name = "Customer.Service.Calls")
+# plot a histogram 
+ggplot(data = CPM_df, mapping = aes(x=Customer.Service.Calls))+
+  geom_histogram(binwidth = .1, col = 'grey')
+```
+Categorical Variables 
+
+```{r}
+number_of_rows <- length(CPM_df$Voice.Mail.Plan)
+
+# Voice.Mail.Plan distribution
+VMP_distribution <- CPM_df %>% select (Voice.Mail.Plan) %>% 
+  group_by(Voice.Mail.Plan) %>% count(Voice.Mail.Plan) %>% mutate (Voice_Mail_Plan_distribution = round((n/number_of_rows)*100,2))
+
+VMP_distribution
+
+# International.Plan distribution
+
+IP_distribution <- CPM_df %>% select (International.Plan) %>% 
+  group_by(International.Plan) %>% count(International.Plan) %>% mutate (International_Plan_distribution = round((n/number_of_rows)*100,2))
+
+IP_distribution
+
+churn_distribution <- CPM_df %>% select (Churn.) %>% 
+  group_by(Churn.) %>% count(Churn.) %>% mutate (churn_distribution = round((n/number_of_rows)*100,2))
+
+churn_distribution
+
+```
+2. how the variables in columns B-R are related to each other
+
+```{r}
+cov_mat <- cov(CPM_df[c(2,5,6,7,8,9,10,11,12,13,14,15,16,17)])
+
+# Not very useful :)
+
+```
+
+
+```{r, fig.width= 12, fig.height= 10}
+
+corr_mat <- cor(CPM_df[c(2,5,6,7,8,9,10,11,12,13,14,15,16,17,18)])
+
+corrplot(corr_mat,method = 'number', order = 'AOE')
+
+```
+
+Clearly, ( Day.Charge & Day.Minutes ), (Night Minutes & Night Charge), (International.Calls & International.Minutes), and (Evening.Calls & Evening.Minutes) are highly correlated. We need to make sure only one of these variables should be considered in predicting Churn, or we can consider giving them a lower weightage.
+
+3. how the variables in columns B-R are related to the Churn
+variable in column S.
+
+```{r Q4 3}
+
+p1 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Account.Length))+
+  geom_boxplot() + coord_flip() 
+
+p2 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Voice.Mail.Messages))+
+  geom_boxplot() + coord_flip() 
+  
+p3 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Day.Calls))+
+  geom_boxplot() + coord_flip() 
+
+p4 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Day.Charge))+
+  geom_boxplot() + coord_flip() 
+
+p5 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Evening.Minutes))+
+  geom_boxplot() + coord_flip() 
+
+p6 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Evening.Calls))+
+  geom_boxplot() + coord_flip() 
+
+p7 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Evening.Charge))+
+  geom_boxplot() + coord_flip() 
+
+p8 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Day.Minutes))+
+  geom_boxplot() + coord_flip() 
+
+p9 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Night.Minutes))+
+  geom_boxplot() + coord_flip() 
+
+p10 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Night.Calls))+
+  geom_boxplot() + coord_flip() 
+
+p11 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Night.Charge))+
+  geom_boxplot() + coord_flip() 
+
+p12 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = International.Minutes))+
+  geom_boxplot() + coord_flip() 
+
+p13 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = International.Calls))+
+  geom_boxplot() + coord_flip() 
+
+p14 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = International.Charge))+
+  geom_boxplot() + coord_flip() 
+
+p15 <- ggplot(data = CPM_df, mapping = aes(x=Churn., y = Customer.Service.Calls))+
+  geom_boxplot() + coord_flip() 
+
+```
+
+
+```{r fig.width = 14, fig.height= 15}
+p1 + p2 + p3 + p4 + p5 + p6 + p7 +p8 + p9 +p10 +p11 + p12 + p13 + p14 + p15 + plot_layout(ncol = 3)
+```
+
+Customer Service calls impact Churn. 
+
+
+
+## Question 5
+
+```{r Question 5}
+
+# Create the data frame 
+
+Sales <- c("High","Moderate","Low")
+Probability <- c(.5,.25,.25)
+Present_Value <- c(100, 75, 40)
+Initial_cost <- c(60, 60, 60)
+Net_Present_value <- c(40, 15, -20)
+
+data_a <- data.frame(rep(c("A"),times = 3),Sales,Probability, Present_Value, Initial_cost, Net_Present_value)
+
+# Rename
+
+names(data_a)[1] = "Project"
+
+Probability <- c(.2,.50,.30)
+Present_Value <- c(200, 75, 25)
+Initial_cost <- c(60, 60, 60)
+Net_Present_value <- c(140, 15, -35)
+
+
+data_b <- data.frame(rep(c("B"),times = 3),Sales,Probability, Present_Value, Initial_cost, Net_Present_value)
+
+names(data_b)[1] = "Project"
+
+SF_df <- rbind(data_a, data_b)
+
+SF_df
+
+```
+A) Find the expected net present value of expanding semiconductor
+business project.
+
+```{r Q5 A}
+
+# Expected value of NPV_P
+
+exp_sc_a <- data_a %>% select (c(3,6)) %>%
+  mutate (NPV_P = Probability*Net_Present_value) 
+
+first_moment_a <- sum(exp_sc_a$NPV_P)
+
+sprintf("Expected Net present value of expanding semiconductor is %.2f Million dollars",first_moment_a)
+
+
+```
+B) Determine variance and standard deviation of the net present
+value
+
+
+```{r  Q5 B}
+
+# Variance Calculation 
+
+exp_sc_a$var_temp <- ((exp_sc_a$Net_Present_value - first_moment_a)^2)*exp_sc_a$Probability
+
+var_a <- sum(exp_sc_a$var_temp)
+
+sprintf("Variance and SD of Net present value of expanding semiconductor is %.2f and %.2f Million dollars respectively",var_a, sqrt(var_a))
+```
+
+C) Find the expected net present value of entering home computer
+market.
+
+```{r Q5 C}
+
+
+exp_sc_b <- data_b %>% select (c(3,6)) %>%
+  mutate (NPV_P = Probability*Net_Present_value) 
+
+first_moment_b = sum(exp_sc_b$NPV_P)
+
+sprintf("Expected Net present value of entering home computer is %.2f Million dollars",first_moment_b)
+```
+
+D) Determine variance and standard deviation of the net present
+value
+
+```{r Q5 D}
+
+
+exp_sc_b$var_temp <- ((exp_sc_b$Net_Present_value - first_moment_b)^2)*exp_sc_b$Probability
+
+var_b <- sum(exp_sc_b$var_temp)
+
+sprintf("Variance and SD of Net present value of entering home computer is %.2f and %.2f Million dollars respectively",var_b, sqrt(var_b))
+```
+E) Which project has the higher expected net present value?
+
+```{r Q5 E}
+sprintf("Entering home computer has higher expected net present value")
+```
+
+F) Which project carries the least risk? Explain.
+
+```{r Q5 F}
+
+print("Project A has the least risk because mean is almost twice that of B with a Stadard diviation that is not so far from that of B")
+
+
+```
+G)Calculate the relative variation for each project choice. Compare
+them to see which project carries the least risk. Is your response consistent
+with the part f) above?
+
+```{r Q5 G}
+sprintf ("Relative variance of A is %.2f and that of B is %.2f. Hence, A is least risky", (sqrt(var_a)/first_moment_a),
+(sqrt(var_b)/first_moment_b))
+
+```
+## Question 6
+
+A) Create a probability model for the number of visits needed to fix
+the machine or exhaust your budget of $2,000.
+
+```{r Question 6}
+
+x <- seq(1,5, by = 1)
+y <- c(.27 , 2*.73*.27 , 3*.73*.73*.27 , 4*.73*.73*.73*.27, (.73* .73)^2)
+
+# this in the form of Binomial distribution the pdf should be (4`c`x)*(p^x)*(1-p)^(n-x)
+
+ggplot(data = data.frame(x,y), mapping = aes(x,y))+
+  geom_line()+
+  labs(title = "Probability distribution for number of visits",
+       x = "Number of Visits",
+       y = "Probability")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_label(
+  label= round(y,2), 
+  nudge_x = 0.03, nudge_y = 0.03)
+
+```
+B. Find the expected number of service technicians that will be called
+in.
+
+```{r Q6 B}
+
+# If we do this manually, we seem to get a different answer ->sum(x*p(x))
+
+ex_people <- (.27 + 2*.73*.27 + 3*.73*.73*.27 + 4*.73*.73*.73*.27 + 4*(.73^4))
+
+print(ex_people)
+
+# But this is a Binomial Distribution so we should consider 4*.27 as the correct answer ?
+
+```
+C. Find the expected amount spent on this machine. (You must
+spend $7,500 for a new one if you do not find a vendor that repairs yours.)
+
+```{r Q6 C}
+
+# This should equate to the expected people called multiplied by the money spent + the money to be spent to buy the machine if it can not be fixed
+
+
+# Case 2 calculating manually 
+
+print(ex_people * 500 + .73^4*7500)
+
+```
+## Question 7
+
+A. What is the probability that exactly 10 of the attendees will pur-
+chase a club membership?
+
+```{r Q7 A}
+# p = .4, n = 20, x = 10
+
+sprintf("Probability that exactly 10 of the attendees will purchase a club membership is %.2f", 100*(dbinom(x = 10, size = 20, prob = .4, log = FALSE)))
+
+```
+B. What is the probability that no more than 10 of the attendees will
+purchase a club membership?
+
+```{r Q7 B}
+# p = .4, n = 20, x <= 10
+
+sprintf("Probability that no more than 10 of the attendees will purchase a club membership is %.2f", 100*(pbinom(q = 10, size = 20, prob = .4, log = FALSE, lower.tail = T)))
+
+```
+C. What is the probability that at least 15 of the attendees will
+purchase a club membership?
+
+```{r Q7 C}
+
+sprintf("Probability that at least 15 of the attendees will purchase a club membership is %.2f", 100*(pbinom(q = 14, size = 20, prob = .4, log = F, lower.tail = F)))
+
+```
+## Question 8
+
+A. Calculate the average number of calls in a one-hour interval, 30-
+minute interval, and 15-minute interval.
+
+```{r Q8 A}
+avg_calls_per_hour <- 400/16
+
+sprintf("Average number of calls in a one-hour interval is %.2f", avg_calls_per_hour)
+sprintf("Average number of calls in a 30-minute interval is %.2f", avg_calls_per_hour/2)
+sprintf("Average number of calls in a 15-minute interval is %.2f", avg_calls_per_hour/4)
+```
+B. What is the probability of exactly six calls in a 15-minute interval?
+
+```{r Q8 B}
+sprintf("The probability of exactly six calls in a 15-minute interval is %.2f %%", 
+        100*dpois(x = 6, lambda = 6.25,log = F))
+```
+C. What is the probability of no calls in a 15-minute interval?
+
+```{r Q8 C}
+sprintf("The probability of no calls in a 15-minute interval is %.3f %%", 
+        100*ppois(q = 0, lambda = 6.25, lower.tail = T, log = F))
+
+```
+D. What is the probability of at least two calls in a 15-minute interval?
+
+```{r Q8 D}
+sprintf("The probability of at least two calls in a 15-minute interval is %.2f %%", 
+        100*ppois(q = 1, lambda = 6.25, lower.tail = F, log = F))
+
+```
+
+## Question 9 - > 
+
+```{r}
+
+xi <- seq(46,50, 1)
+
+ni <- seq(20,180,20)
+
+prob_val <- 0
+
+prob_list <- c()
+
+
+create_list_of_probs <- function (ni,xi,prob_val, prob_list){
+  for (i in ni){
+    for (j in xi){
+      temp_prob <- dhyper(x = j, m = 1000 - i , n= i , k = 50, log = F)
+      prob_val <- prob_val + temp_prob
+    }
+    prob_list <- append(prob_list, prob_val)
+    prob_val <- 0
+  }
+  return (prob_list)
+}
+
+
+prob_list <- data.frame(create_list_of_probs(ni = ni,
+                                                      xi = xi,
+                                                      prob_val = prob_val,
+                                                      prob_list = prob_list))
+names(prob_list) <- c("prob_list")
+
+prob_list
+
+p_a4 <- ggplot(data = prob_list, 
+               mapping = aes(x = seq(.02,.180,.020), y =prob_list))+
+  geom_point()+
+  geom_line()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_label(
+  label= round(prob_list$prob_list,2), 
+  nudge_x = 0.009, nudge_y = 0.009)
+
+p_a4
+
+prob_val <- 0
+prob_list <- c()
+
+prob_list <- data.frame(create_list_of_probs(ni = ni,
+                                             xi = seq(45,50,1),
+                                             prob_val = prob_val,
+                                             prob_list = prob_list))
+
+names(prob_list) <- c("prob_list")
+
+prob_list
+p_a5 <- ggplot(data = prob_list, 
+               mapping = aes(x = seq(.02,.180,.020), y =prob_list))+
+  geom_point()+
+  geom_line()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_label(
+  label= round(prob_list$prob_list,2), 
+  nudge_x = 0.008, nudge_y = 0.008)
+
+p_a5
+
+cat("As the company became lenient in accepting the batch the probabilities are little higher than first case")
+
+```
+
+## Question 10 
+
+```{r Q 10}
+
+# Build the table for distributions 
+
+# Demand = 5 - X + Y (if x != 0 then y is 0 and vise versa)
+
+# So the probability distribution of x is inverse of probability distribution of demand (for demand <6 ) (please look at madison data.frame)
+
+# Not considering demand that is >= 9 as P(x>=9) = 0
+
+
+madison <- data.frame(Demand = seq(0,8,1),
+                      Probability = c(rep(.05,2),.08,.16,.3,.16,.1,.05,.05),
+                      x = c(5,4,3,2,1,rep(0,4)),
+                      y = c(rep(0,6),c(1,2,3)),
+                      z = c(seq(0,300,60),c(280,260,240))
+                      )
+
+madison
+
+
+```
+
+A) Let X be the number of window air conditioner units left at the
+end of the week (if any), and let Y  10 Abe the number of special stockout orders
+required (if any), assuming that a special stockout order is required each
+time there is a demand and no unit is available in stock. Find the probability
+distributions of X and Y .
+
+
+```{r 10 A}
+#Plot X 
+
+x_pd <- madison %>% group_by(x) %>% summarise(Probability = sum(Probability))
+
+
+ggplot(data = x_pd,mapping = aes(x = x, y = Probability))+
+  geom_point()+
+  geom_line()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_label(
+  label= round(x_pd$Probability,2), 
+  nudge_x = 0.05, nudge_y = 0.05)
+
+
+#Plot Y
+
+y_pd <- madison %>% group_by(y) %>% summarise(Probability = sum(Probability))
+
+
+
+ggplot(data = y_pd,
+       mapping = aes(x = y, y = Probability))+
+  geom_point()+
+  geom_line()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_label(
+  label= round(y_pd$Probability,2), 
+  nudge_x = 0.05, nudge_y = 0.05)
+
+
+```
+
+B. Find the expected value of X and the expected value of Y.
+
+```{r 10 B}
+sprintf("Expected value of X is %.2f and Expected value of Y is %.2f", 
+        sum(x_pd$x * x_pd$Probability), sum(y_pd$y * y_pd$Probability))
+
+```
+C. Assume that this appliance store makes a $60 prot on each air
+conditioner sold from the weekly available stock, but the store loses $20 for
+each unit sold on a special stockout order basis. Let Z be the prot that
+Madison earns in the coming week from the sale of window air conditioners.
+Find the probability distribution of Z.
+
+```{r 10 C}
+
+z_pd <- madison %>% group_by(z) %>% summarise(Probability = sum(Probability))
+
+
+ggplot(data = z_pd,mapping = aes(x = z, y = Probability))+
+  geom_point()+
+  geom_line()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_label(
+  label= round(z_pd$Probability,2), 
+  nudge_x = 0.02, nudge_y = 0.02)
+
+```
+
+D. Find the expected value of Z.
+
+```{r}
+sprintf("Expected value of Z is %.2f", 
+        sum(z_pd$z * z_pd$Probability))
+```
+

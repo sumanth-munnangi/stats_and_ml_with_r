@@ -1,0 +1,262 @@
+---
+title: "III homework 2"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+library(readxl)
+
+```
+
+
+Question 3
+
+```{r}
+
+mydata<-read_excel("Assignment3HW3_Data.xlsx",sheet = "Data 3")
+
+```
+
+
+
+```{r}
+
+colnames(mydata) <- c("Campaign_Organic",
+                      "Customer_ID",
+                      "Month_Before",
+                      "Month_After",
+                      "Cust_age",
+                      "Joined",
+                      "Churned",
+                      "Avg_spend")
+
+```
+
+
+```{r}
+mylogit<-glm(Churned~Joined+Cust_age+Avg_spend,data=mydata,family=binomial(link="logit"))
+
+```
+
+
+```{r}
+summary(mylogit)
+```
+
+```{r}
+Confidence=confint(mylogit) 
+Confidence
+
+
+```
+
+
+```{r}
+
+oddsr=round(exp(cbind(OddsRatio=coef(mylogit),confint(mylogit))),4)
+
+oddsr
+```
+
+```{r}
+
+2.5/(1+2.5)
+
+1.5879/(1+1.5879)
+
+```
+
+
+```{r}
+# confmat<-confusion_matrix(mylogit)
+# 
+# confmat=t(confmat) 
+# n_o=c(2,1,3) #new order for better comparison
+# confmat[n_o,n_o]
+```
+
+```{r}
+probdefault<- predict(mylogit,newdata=mydata,type="response")
+```
+
+```{r}
+mydata$probchurn <-  probdefault
+```
+
+
+```{r}
+
+mean(mydata$probchurn)
+
+```
+
+
+```{r}
+
+mydata$expected_lifetime <- round(1/(mydata$probchurn))
+
+```
+
+
+```{r}
+
+cal_CLV <- function (df,i = 0.0441/12){
+  retention <- 1- df[9]
+  total <- 0
+  for (j in seq(1,df[10])){
+    total <- total + (df[8]/2)*((retention/1+i)**(j-1))
+  }
+  
+  return (total )
+}
+
+```
+
+
+```{r}
+# temp <- cal_CLV(probdefault = mydata$probdefault,
+#                 t= mydata$expected_lifetime,
+#                 m = mydata$Avg_spend)
+
+mydata$CLV <- apply(mydata,1,  cal_CLV)
+
+```
+
+
+```{r}
+mydata$retention <- 1-mydata$probchurn
+```
+
+
+```{r}
+mydata_retention_1 <- mydata[,c(2,3,6,12)]
+
+colnames(mydata_retention_1) <- c("Customer_ID","Amount","Joined","retention")
+
+mydata_retention_1$prom_month <- 0
+
+
+mydata_retention_2 <- mydata[,c(2,4,6,12)]
+
+colnames(mydata_retention_2) <- c("Customer_ID","Amount","Joined","retention")
+
+mydata_retention_2$prom_month <- 1
+
+mydata_retention <- rbind(mydata_retention_1,mydata_retention_2)
+
+```
+
+
+```{r}
+model_retention <- lm(retention ~ Joined  , data =mydata_retention)
+```
+
+
+```{r}
+options(scipen=999)
+```
+
+
+```{r}
+
+summary(model_retention)
+
+```
+
+```{r}
+mydata_CLV_1 <- mydata[,c(2,3,6,11)]
+
+colnames(mydata_CLV_1) <- c("Customer_ID","Amount","Joined","CLV")
+
+mydata_CLV_1$prom_month <- 0
+
+
+mydata_CLV_2 <- mydata[,c(2,4,6,11)]
+
+colnames(mydata_CLV_2) <- c("Customer_ID","Amount","Joined","CLV")
+
+mydata_CLV_2$prom_month <- 1
+
+mydata_CLV <- rbind(mydata_CLV_1,mydata_CLV_2)
+```
+
+
+```{r}
+model_CLV <- lm(CLV ~ Joined   ,data =mydata_CLV)
+```
+
+
+```{r}
+
+summary(model_CLV)
+
+```
+
+```{r}
+
+write.csv(mydata,"final_df.csv")
+
+```
+
+
+
+```{r}
+mydata_base_1 <- mydata[,c(2,3,6,1)]
+
+colnames(mydata_base_1) <- c("Customer_ID","Amount","Joined","Campain")
+
+mydata_base_1$prom_month <- 0
+
+
+mydata_base_2 <- mydata[,c(2,4,6,1)]
+
+colnames(mydata_base_2) <- c("Customer_ID","Amount","Joined","Campain")
+
+mydata_base_2$prom_month <- 1
+
+mydata_base <- rbind(mydata_base_1,mydata_base_2)
+
+```
+
+```{r}
+model_base <- lm(retention ~ Campaign_Organic *Joined ,data =mydata)
+```
+
+```{r}
+summary(model_base)
+```
+
+```{r}
+model_base <- lm(CLV ~ Campaign_Organic *Joined ,data =mydata)
+```
+
+```{r}
+
+summary(model_base)
+
+```
+
+
+```{r}
+model_CLV <- lm(CLV ~ Joined ,data =mydata_CLV)
+```
+
+
+```{r}
+summary(model_CLV)
+
+```
+
+```{r}
+mydata
+
+```
+
