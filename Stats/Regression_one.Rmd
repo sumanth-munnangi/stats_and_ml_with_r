@@ -1,0 +1,298 @@
+---
+title: "BAX441 | Homework 2 | Sumanth Munnangi"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+
+Q1 A - Create a scatterplot for the level of sales on the number of shelf feet. Does
+the relationship appear linear? Do you think that it ought to be linear?
+
+```{r Q1A,fig.show= 'hold', fig.width=10, out.width= "50%"}
+
+ds_df <- read.csv("Display Space.csv")
+
+plot(ds_df$Display.Feet, ds_df$Sales, 
+     xlab = "Display Feet", 
+     ylab = "Sales",
+     main = "Sales vs Display Feet ")
+abline(lm(ds_df$Sales ~ ds_df$Display.Feet))
+
+# Smooth line
+
+scatter.smooth(x = ds_df$Display.Feet, y = ds_df$Sales, main="Sales ~ Display", xlab = "Display Feet", 
+     ylab = "Sales")
+
+
+```
+
+```{r, echo=F}
+cat("The Sales and Display Feet are not linearly related. I do not think it would be linear. If it were linear, all the retailers need to do is to get more space. The Display feet may not have an impact on the sales post a perticular high value.")
+```
+
+
+Q1 B - Fit a linear regression equation to the data, regressing sales on the number
+of shelf feet. Does this fitted model make substantive sense? What do the
+slope and intercept tell you?
+
+
+```{r Q1B}
+
+# Fit a model for Sales and Display Space
+
+# Equation 
+
+lm_ds <- lm(Sales ~.,data = ds_df)
+
+lm_ds_anova <- anova(lm_ds)
+lm_ds_summary <- summary(lm_ds)
+
+lm_ds_anova
+
+lm_ds_summary
+
+```
+
+```{r, echo= F}
+
+cat("With the p-value for F-test at",lm_ds_anova$`Pr(>F)`[1], "we have highly statistically significant evidance that Display Feet and Sales are linearly related and the model makes sense.\n\nInterpreting the coefficients :-\n\nIntercept: The intrecept is",round(lm_ds_summary$coefficients[1],2),"This is the average weekly sales if Display feet is zero. This makes no sense.\n\nSlope: The relationship between Display Feeet and sales is described by b1:",round(lm_ds_summary$coefficients[2],2),". With each additional display feet, the sales will increase by",round(lm_ds_summary$coefficients[2],2),"units")
+
+
+```
+Q1 C - If you see nonlinear relationship in part (a), then use Tukey's bulging rule
+and transform any variables. Create a scatterplot that shows the relation-
+ship between the new set of variables. Does the relationship seem more
+linear than in part (a)? Fit a linear regression equation to the transformed
+data. What do the slope and intercept tell you?
+
+```{r Q1C1}
+
+transformed_display_feet <- log(ds_df$Display.Feet)
+
+plot(transformed_display_feet, ds_df$Sales, 
+     xlab = "Log (Display Feet)", 
+     ylab = "Sales",
+     main = "Sales vs transformed Display Feet ")
+abline(lm(ds_df$Sales ~ transformed_display_feet))
+
+cat("The Sales and transformed Display Feet are linearly related. After use Tukey's Bulging rule to perform variable transformation, there seems to be a better linear relationship")
+
+
+lm_ds_1 <- lm(ds_df$Sales ~ transformed_display_feet)
+
+lm_ds_anova <- anova(lm_ds_1)
+lm_ds_summary <- summary(lm_ds_1)
+
+lm_ds_anova
+
+lm_ds_summary
+
+```
+
+```{r, echo=F}
+
+cat("With the p-value for F-test at",lm_ds_anova$`Pr(>F)`[1], "we have highly statistically significant evidance that log transformed Display Feet and Sales are linearly related and the model makes sense.\n\nInterpreting the coefficients :-\n\nIntercept: The intrecept is",round(lm_ds_summary$coefficients[1],2),"This is the average weekly sales if Display feet is one. This makes sense.\n\nSlope: The relationship between Display Feet and sales is described by b1:",round(lm_ds_summary$coefficients[2],2),"With one unit increase in log (display feet), the sales will increase by",round(lm_ds_summary$coefficients[2],2),"units")
+
+
+```
+Q1 D - Compare the fit of the two models to the data. Use $R_2$, the model standard
+error, and draw any inferences about the slope to check. Which of the two
+models provide a better description of the pattern in the data?
+
+```{r Q1D, echo=FALSE}
+cat("Model with out log transformation on dependent variable")
+summary(lm_ds)
+```
+
+
+```{r Q1D1,echo=FALSE}
+cat("Model with log transformation on independent variable")
+summary(lm_ds_1)
+
+```
+
+```{r, echo=F}
+
+
+cat("Inferences:\n\nP val for model with out log transformation (9.55469e-14) is much higher than P val for model with log transformation (4.055925e-18). Hence the log transformation on independent variable increased the strength of linear relationship.
+\nR-squared for model with out log transformation (0.712) is lower than R-squared for model with log transformation (0.8153). Hence the log transformation on independent variable increased the explainability of linear model.
+\nStandard Error for the model with out log transformation (51.59) is much higher than Standard Error for model with log transformation (41.31). Hence the log transformation on independent variable increased the precision of linear model.
+\nAdjusted R-squared for model with out log transformation (0.7056) is lower than R-squared for model with log transformation (0.8112). In other words, the model with out log transformation could explain 70.56 % of variation in Sales by variation in Display Space. However, the model with log transformation could explain 81.12 % of the variation in Sales by variation in Log (Display Space).
+\nP-value for slope for model with out log transformation (9.55469e-14) is much higher than P val for model with log transformation (4.055925e-18). The model with out log transformation has lower evidence for linearity.
+\nWhile both the models show overwhelming evidence that there is linear relationship between dependent and independent variables, the log transformation on independent variable increased the strength of linear dependancy. Hence Model with log transformation on independent variable provide a better description of the pattern in the data.")
+
+```
+## Question 2 
+
+Q2 A - State the multiple regression model.
+
+$ROOA = \beta_{0} + \beta_{1}*Efficency.Ratio + \beta_{2}*Risk-based-Caital$
+
+
+```{r Q2A}
+
+cat("The ROAA(dependent variable) is linearly dependent on efficiency ratio and total risk-based capital (the independent variables).")
+
+```
+
+Q2 B - Using the data, create the estimated multiple regression model.
+
+```{r Q2B}
+
+# Read the data 
+roaa_df <- read.csv("CommunityBanks.csv")
+# Select the right columns 
+roaa_df <- roaa_df[,3:5]
+names(roaa_df) <- c("ROAA","Efficiency.Ratio","Total.Risk.Based.Capital.Ratio")
+
+plot(roaa_df)
+
+lm_roaa_df <- lm(ROAA ~ .,data = roaa_df)
+
+s_lm_roaa_df <- summary (lm_roaa_df)
+
+# Print the summary of the data 
+s_lm_roaa_df
+
+
+
+```
+
+
+Q2 C - Determine whether there is a significant relationship between ROAA and
+the two independent variables (efficiency ratio and total risk-based capital)
+at the 0.05 level of significance. In other words, run the Global F-test and
+comment on the overall model validity.
+
+
+$H_{0}: \beta_{1} = \beta_{2} = 0$
+
+$H_{1}:$ At least one $\beta_{i}$ is not equal to zero.
+
+```{r Q2c, echo=F}
+
+cat ("With the P - value for F test at 1.273e-14, we have highly statistically significant evidence that the model is valid")
+
+```
+Q2 D - At the 0.05 level of significance, determine whether each independent vari-
+able makes a significant contribution to the regression model. On the basis
+of these results, indicate the independent variables to include in this model.
+
+
+$H_{0}: \beta_{1} = 0$
+
+$H_{1}:\beta_{1} \ne 0$
+
+
+And 
+
+
+$H_{0}: \beta_{2} = 0$
+
+$H_{1}:\beta_{2} \ne 0$
+
+
+```{r Q2d , echo=F}
+
+cat ("With the P - value for Efficiency.Ratio T test at 2.54e-07, we have highly statistically significant evidence that slope is non zero, and Efficiency.Ratio linearly impacts ROAA
+\nWith the P - value for Total.Risk.Based.Capital.Ratio T test at 3.11e-07, we have highly statistically significant evidence that slope is non zero, and Total.Risk.Based.Capital.Ratio linearly impacts ROAA
+\nFrom above, Include both Efficiency.Ratio and Total.Risk.Based.Capital.Ratio in the model")
+
+```
+Q2 E - Interpret the partial slope coefficients.
+
+```{r Q2e, echo= F}
+
+
+cat("Slope for Efficiency.Ratio: With a uint change in efficiency ratio, ROAA reduces by 0.012% absolute, given every other indeendent value is constant. 
+    \nSlope for Total.Risk.Based.Capital.Ratio: With a unit change in efficency ratio, ROAA increases by \n0.029 % absolute, given every other indeendent value is constant.")
+
+
+```
+Q2 F - Compute the coefficient of multiple determination, R2 and interpret its
+value.
+
+```{r Q2F, echo= F}
+
+cat("The coefficient of multiple determination is",round(s_lm_roaa_df$r.squared,3),"\n\n27.9 % of data is explained by the regression model. Which is pretty bad.")
+
+```
+Q2 G - What is the value of adjusted R2?
+
+```{r Q2G, echo= F}
+
+cat("The Adjusted R squared value for this mutiple linear regression is",round(s_lm_roaa_df$adj.r.squared,3))
+
+```
+
+Q2 H - Construct a 95% interval estimate for the mean ROAA when the efficiency
+ratio is 60% and the total risk-based capital is 15%.
+
+```{r Q2H, echo= F}
+cat("95% interval for the mean ROAA when the efficiency ratio is 60% and the total risk-based capital is 15% is\n\n")
+
+predict(object = lm_roaa_df, data.frame(Efficiency.Ratio = 60, Total.Risk.Based.Capital.Ratio = 15),interval = "confidence", level = 0.95)
+
+```
+Q2 I - Construct a 95% interval for the ROAA for a particular community bank
+when the efficiency ratio is 60% and the total risk-based capital is 15%.
+
+```{r Q2I, echo= F}
+
+cat("95% interval for the ROAA for a particular community bank when the efficiency ratio is 60% and the total risk-based capital is 15% is\n\n")
+
+print(predict(object = lm_roaa_df, data.frame(Efficiency.Ratio = 60, Total.Risk.Based.Capital.Ratio = 15),interval = "prediction", level = 0.95))
+
+
+```
+## Question 3
+
+```{r}
+med_df <- read.csv("MedicalCo.csv")
+
+# Lets create the full model with all the independent variables
+
+flm_med <- lm(SALES ~., data = med_df)
+
+# Now Build a reduced model with ADV and Bonus 
+
+rlm_med <- lm(SALES ~ ADV + BONUS, data = med_df)
+
+
+full <- anova(flm_med)
+reduced <- anova(rlm_med)
+
+# Get Sum of Squares Error (SSE's) for both the models
+
+SSE_fm <- full$`Sum Sq`[5]
+SSE_rm <- reduced$`Sum Sq`[3]
+MSE_fm <- full$`Mean Sq`[5]
+
+# Calculating the Partial F statistic 
+
+partial_f_statistic <- ((SSE_rm - SSE_fm)/2)/MSE_fm
+
+p_val_partial_f <- pf(partial_f_statistic, 2, nrow(med_df)-4-1, lower.tail = FALSE)
+
+
+partial_rsquared <- (SSE_rm - SSE_fm)/SSE_rm
+
+
+```
+
+$H_{0}:$ The reduced model and the full model do not differ significantly, so choose the reduced model.
+
+$H_{1}:$ The full model is significantly better.
+
+
+```{r, echo= F}
+cat("With p-value for partial F-test at",p_val_partial_f,"We do not have significant statistical evidence that the Full model is significatly better. Hence, at 5% significance level variables X3 and X4 jointly do not have a statistically significant influence on Y. \n\nThe proportion of varience explained by X3 and X4 that is not explained by X1 and X2 is",round(partial_rsquared*100,2),"%")
+
+```
+
