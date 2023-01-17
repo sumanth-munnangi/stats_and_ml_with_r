@@ -1,0 +1,551 @@
+---
+title: "Regressoin Dummy"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo= F,warning=F}
+library("ggplot2")
+
+```
+
+## Question 1
+
+```{r Q1}
+electronics_df <- read.csv("Electronics.csv")
+
+electronics_df$street <- ifelse(electronics_df$Location == "Street", 1,0)
+electronics_df$Mall <- ifelse(electronics_df$Location == "Mall", 1,0)
+electronics_df$Downtown <- ifelse(electronics_df$Location == "Downtown", 1,0)
+
+ele_model <- lm(Sales ~ Households + Mall + Downtown, data =electronics_df)
+
+```
+
+
+```{r, echo = F}
+
+summary(ele_model)
+
+```
+
+```{r, echo = F}
+
+data.frame(PoitEestimate = coef(ele_model),confint(ele_model))
+
+```
+
+```{r, echo = F}
+cat("Accounting for Location, a 1000 increase in number of households lead to an increase of $868.5 in sales. The 95 % confidence interval is ($ 779.5, 957.7).\n\nControlling for number of households, the average sales for Street is $ 14,977 with a 95% confidence interval of ($ 1,357, $28,598). \n\nControlling for number of households, the average sales for Mall is $ 28,374 higher than that of streets with a 95% confidence interval of ($ 18,554, $38,193). \n\nControlling for number of households, the average sales for Downtown is $ 6,864 higher than that of streets with a 95% confidence interval of ($ -3,636, $17,363). \n\nThe P value (0.178) suggests that there is no statisticaly significant difference in mean sales for Streets and Downtown while accounting for Location.")
+
+```
+
+## Question 2
+
+A. Create a linear trend model. Write the model. Linear trend model means
+using only time (t) as the regressor.
+
+```{r}
+
+winterfun_df <- read.csv("WinterFun.csv")
+
+```
+
+The linear trend model is as follows 
+
+$y = \beta_{1} + \beta_{2}*time + \epsilon$
+
+```{r}
+
+summary(lm(SALES ~ TIME, data = winterfun_df))
+```
+
+B. Now, you want to see if there is any seasonality. For this part, let's use
+a descriptive approach. Create a time plot of sales (Sales versus Time)
+and check if there are seasonal patterns. Examine evidence of seasonality
+visually. Describe the seasonality in your own words.
+
+```{r Q2}
+Time <- winterfun_df$TIME
+Sales <- winterfun_df$SALES
+
+plot( Time, Sales,
+     type = "l",
+     xlab = "Time",
+     ylab = "Sales (in thousands)",
+     main = "Sales of Winter Sports",
+     col = "blue")
+abline(lm(SALES ~ TIME, data = winterfun_df))
+```
+
+```{r, echo = F}
+cat("Looks like there is some seasonality here in this data. Every 3rd or 4th data point there seems to be a dip in sales. This indicate some seasonality in the data.")
+```
+
+C. Create indicator variables for quarters.
+
+```{r}
+winterfun_df$Q1 <- ifelse(winterfun_df$QUARTER ==1, 1,0)
+winterfun_df$Q2 <- ifelse(winterfun_df$QUARTER ==2, 1,0)
+winterfun_df$Q3 <- ifelse(winterfun_df$QUARTER ==3, 1,0)
+winterfun_df$Q4 <- ifelse(winterfun_df$QUARTER ==4, 1,0)
+
+head(winterfun_df)
+
+```
+
+D. Conduct a Partial F-test to assess if the seasonal indicator variables are
+necessary in the model.
+
+Full Model
+
+$y = \beta_{1} + \beta_{2}*time + \beta_{3}*Q2+ \beta_{4}*Q3+ \beta_{5}*Q4+ \epsilon$
+
+Reduced Model
+
+$y = \beta_{1} + \beta_{2}*time + \epsilon$
+
+```{r}
+full_model <- lm(SALES ~ TIME + Q2 + Q3 + Q4, data = winterfun_df)
+
+summary(full_model)
+
+```
+
+
+```{r}
+
+reduced_model <- lm(SALES ~ TIME , data = winterfun_df)
+
+summary(reduced_model)
+
+```
+$H_{0} : \beta_{3} = \beta_{4} = \beta_{5} = 0$
+
+$H_{1} :$ At least one of the $\beta$ is not equal to zero
+
+```{r}
+
+anova(full_model, reduced_model)
+
+SSE_r = 9622.1
+SSE_f = 1809.5
+partial_r_sq <- (SSE_r - SSE_f)/SSE_r
+
+```
+
+```{r, echo= F}
+
+cat(sprintf("Based on the partial F statistic from the above Anova result, there is significant evidence that addition of indicator and the trend variables makes the model efficient. Hence we should include both the variables. \n\nThe indicator variables explain %.2f %% of the variation that is not explained by time variable alone.",partial_r_sq*100))
+
+```
+
+## Question 3
+
+```{r Q3}
+
+ed_df <- read.csv("EmploymentDiscrimination.csv")
+
+
+ed_df$male <- ifelse(ed_df$GENDER == "FEMALE",0,1)
+
+```
+
+
+A) Create a multiple regression model using Salary as the regressand and edu-
+cation level and gender as the regressors. For consistency, let's use the Male
+dummy, although as you know, which dummy you use won't matter.
+
+$Salary = \beta_{0} + \beta_{1}*Education + \beta_{2}*MaleDummy + \epsilon$
+
+```{r}
+
+ed_model <- lm(SALARY ~ EDUCAT + male , data = ed_df)
+
+summary(ed_model)
+
+```
+
+B) Interpret the differential intercept coefficient and the parameter estimate of
+the education level. Is there evidence of employment discrimination at the
+Harris bank?
+
+```{r, echo= F}
+
+cat("The model is statistically sgnificant with p-value for global f test at 1.498e-09. \n\nAccounting for gender, an increase in education level increase the Salary by $ 80.7 on an average. \n\nControlling for education level, males made $ 691.81 more than females on an average. \n\nThere seems to be employment discrimination among males and females at Harris Bank.")
+
+```
+
+C) Does the difference in average salaries increase between two groups as education increases?
+
+$Salary = \beta_{0} + \beta_{1}*Education + \beta_{2}*MaleDummy + \beta_{3}*MaleDummy*Education + \epsilon$
+
+```{r}
+ed_model_interaction <- lm(SALARY ~ EDUCAT * male , data = ed_df)
+
+summary(ed_model_interaction)
+
+```
+
+```{r, echo = F}
+
+cat("The adjusted R squares and model standard error for the interaction model looks marginally better than the 1st model.\n\nThe individual partial coefficients p-values for the model with out interaction are less than the significance level suggesting that the variables explain the variation in the salaries.\n\nThe iteraction term in the above interaction model is not significant at 10% or 5% significance level. Hence we can conclude that gender and Education level do not interact to linearly effect sales. In other words, the effect of gender on salary do not depend on the level of education.")
+
+```
+
+D) Create a plot with the two regressions - one for male and another for female.
+Are these two regressions parallel, coincident, dissimilar, or concurrent?
+
+```{r}
+
+ed_Males <- subset(ed_df, ed_df$GENDER == "MALE")
+
+ed_Females <- subset(ed_df, ed_df$GENDER == "FEMALE")
+
+plot(ed_df$EDUCAT, ed_df$SALARY, 
+     main = "Interaction Plot",
+     xlab = "Education level",
+     ylab = "Salary",
+     col = ifelse(ed_df$GENDER == "MALE", "blue", "red"))
+legend("topleft", 
+       pch = c(1, 1), 
+       c("Female", "Male"), 
+       col = c("red", "blue"),
+       cex = 0.5)
+abline(lm(ed_Females$SALARY ~ ed_Females$EDUCAT), col = "red")
+abline(lm(ed_Males$SALARY ~ ed_Males$EDUCAT), col = "blue")
+
+
+```
+
+```{r, echo = F}
+
+cat("Both the regression lines are Dissimilar")
+  
+```
+
+E) What is the difference between models in part a and part c? Your comparison should include examining the statistical significance of the variables, the adjusted R2, the model standard error, the overall model validity, and the t-test for individual coefficients.
+
+```{r}
+cat("The adjusted R squares and model standard error suggests that the interaction model looks better than the 1st model by marginality.
+
+Both the models are valid with the Global tests's p-values being very low than the significant level. 
+
+The individual partial p-values of the 1st model are less than the significant level suggesting that the variables are significantly explaining the variation in the salaries. 
+    
+However, the interaction model's p-values of the partial coefficients are not significant. Based the results, one may choose to ignore the interaction term in the model")
+
+```
+
+F) Now run a partial F-test to assess the significance of the gender dummy
+and the interaction term. Are the gender dummy and the interaction term
+jointly significant in explaining the variation in salaries?
+
+
+
+```{r}
+
+full_model <- ed_model_interaction 
+reduced_model <- lm(SALARY ~ EDUCAT , data = ed_df)
+
+anova(full_model, reduced_model)
+
+SSE_r = 38460756
+SSE_f = 29054426
+partial_r_sq <- (SSE_r - SSE_f)/SSE_r
+
+```
+
+$H_{0} : \beta_{2} = \beta_{3}$
+
+$H_{1} : \beta_{2} \ne \beta_{3}$
+
+
+```{r, echo= F}
+
+cat(sprintf("Based on the partial F statistic from the above Anova result, there is significant evidence that addition of gender and the interaction variables makes the linear model more efficient (The partial p value of 3.799e-06 suggests the same). \n\nThe gender and interaction variables explain %.2f %% of the variation that is not explained by Education level alone.",partial_r_sq*100))
+
+```
+G) Which model would you settle with?
+
+
+```{r, echo= F}
+cat("The interaction model is statistically significant. Additionally, by theory, education would have an impact on the salary. The graph in Q - D explains this clearly. As the Education level increases males had higher increase in salaries when compared to females. \n\nHence, I would consider the Full model (or in this case the model with interactions) as my prefered model.")
+
+```
+## Question 4
+
+```{r}
+
+vc_df <-read.csv("Downloads.csv")
+
+colnames(vc_df) <- c("Transfer_time","FileSize", "Vendor")
+
+vc_df$MS <- ifelse(vc_df$Vendor == "MS", 1,0)
+
+```
+
+
+```{r}
+
+model_vc <- lm(Transfer_time ~ FileSize + MS, data = vc_df)
+
+summary(model_vc)
+
+```
+
+```{r}
+cat("The Global F statistic and the corresponding P value suggests that the model is statistically significantly valid. 
+
+Accounting for the vendor, as the file size increases by one unit, the time taken for the transfer increases by .3 seconds. 
+
+Controlling for Filesize, vendor 'MS' takes 5 seconds less time than 'NP' vendor")
+
+```
+
+
+```{r}
+model_vc_inter <- lm(Transfer_time ~ FileSize * MS, data = vc_df)
+
+summary(model_vc_inter)
+```
+
+```{r}
+vc_MS <- subset(vc_df, vc_df$Vendor == "MS")
+
+vc_NP <- subset(vc_df, vc_df$Vendor == "NP")
+
+plot(vc_df$FileSize, vc_df$Transfer_time, 
+     main = "Interaction Plot",
+     xlab = "Transfer_time",
+     ylab = "FileSize",
+     col = ifelse(vc_df$Vendor == "MS", "blue", "red"))
+legend("topleft", 
+       pch = c(1, 1), 
+       c("NP", "MS"), 
+       col = c("red", "blue"),
+       cex = 0.5)
+abline(lm(vc_MS$Transfer_time ~ vc_MS$FileSize), col = "blue")
+abline(lm(vc_NP$Transfer_time ~ vc_NP$FileSize), col = "red")
+
+```
+
+
+```{r, echo= F}
+
+cat("We include the interaction term to answer if file size effects differently for different vendors. 
+    
+The above result suggest that the interaction term is statistically significant. In other words, the effect of file size on transfer time different for each
+vendor. 
+
+Accounting for file size, NP transfers the files in 4.89 seconds on an average. As file size increases by one unit, NP takes .4 seconds more time to transfer the file on an average.
+
+Accounting for file size, MS transfers the files in 9.66 seconds on an average. As file size increases by one unit, MS takes .22 seconds more time to transfer the file on an average.
+
+I would recommend NP for the given range of file sizes. The above graph suggests the same. For the same time, NP is able to transfer higher file sizes.")
+
+```
+
+## Question 5
+
+```{r}
+
+fi_df <- read.csv("Fisher Index.csv")
+
+model_fi_inter <- lm( Y ~ X , data = fi_df)
+
+model_fi_no_inter <- lm( Y ~ X -1, data = fi_df)
+
+```
+
+
+```{r}
+
+summary(model_fi_inter)
+
+```
+```{r}
+
+raw_rsquared <- sum((fi_df$Y*fi_df$X))^2/(sum(fi_df$Y^2)*sum(fi_df$X^2))
+
+raw_rsquared
+
+```
+
+```{r, echo= F}
+
+cat(sprintf("The Raw R squared value for intercept less model is %.2f, which is much higher than R squared value for the model with intercept (0.71). The model through origin explains more variation than the model with intercept. For this use case I would prefer to use the model through the origin. The theory also aligns with the model through origin",raw_rsquared))
+
+```
+
+## Question 6
+
+```{r}
+CF_df <- read.csv("CorporateFinancials.csv")
+
+```
+
+A) Regress dividend payments (Y) on after-tax corporate profits (X) to and
+out if there is a relationship between the two.
+
+```{r}
+
+cf_model <- lm(After_Tax_Profit ~ Dividend, data = CF_df)
+
+summary(cf_model)
+
+```
+
+
+```{r, echo= F}
+
+cat("The overall model is significant (The p value for global F test is low). In other words, we have statistically significant evidence that Dividend is linearly related to After_Tax_Profit.")
+
+```
+
+B) To see if the dividend payments exhibit any seasonal pattern, develop a
+suitable dummy variable regression model and estimate it. In developing
+the model, how would you take into account that the intercept as well as
+the slope coefficient may vary from quarter to quarter?
+
+```{r}
+
+CF_df$Q1 <- ifelse(CF_df$Quarter ==1, 1,0)
+CF_df$Q2 <- ifelse(CF_df$Quarter ==2, 1,0)
+CF_df$Q3 <- ifelse(CF_df$Quarter ==3, 1,0)
+CF_df$Q4 <- ifelse(CF_df$Quarter ==4, 1,0)
+
+```
+
+
+```{r, echo= F}
+Time <- paste(CF_df$Year,paste("Q",CF_df$Quarter,sep = ""), sep = "-")
+Dividend <- CF_df$Dividend
+
+
+ggplot(data = data.frame(Time,Dividend))+
+  geom_line(mapping = aes(x= Time, y = Dividend, group = 1))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+```{r}
+cf_dummy_model <- lm(Dividend ~  Q2+ Q3 + Q4, data = CF_df) 
+summary(cf_dummy_model)
+```
+
+
+```{r}
+
+cf_dummy_model <- lm(Dividend ~  Q2*After_Tax_Profit + Q3*After_Tax_Profit + Q4*After_Tax_Profit, data = CF_df) 
+summary(cf_dummy_model)
+
+```
+
+
+```{r, echo= F}
+
+cat("To account for the differeces in slopes and intercepts across quarters we included the dummy variables. This will factor in the differences in slopes and intercept over the years.
+    
+The above model is statistially significant (P value for global F test is low) hence is valid.")
+
+```
+
+
+C) Based on your results, what can you say about the seasonal pattern, if any,
+in the dividend payment policies of U.S. private corporations? Is this what
+you expected a priori?
+
+```{r, echo= F}
+
+cat("There is no seasonality in the data. All the interaction and Quarter terms are insignificant hinting the non seasonal nature of Dividends. The time series graph also suggests the same. Also, the dividends usually not entirely dependent on profits; companies usually decide on a fixed dividend irrespective of profit. Only in extrodinary conditions they differ from the usual dividends. Hence, I believe there wouldn't be quarterly seasonality in the data.")
+
+```
+
+## Question 7
+
+```{r Q7}
+
+ml_df <- read.csv("Mowers.csv")
+
+```
+
+A) Estimate the model
+
+
+$y_{sales} = \beta_{0} + \beta_{1}*temperature + \beta_{2}*advertising + \beta_{3}*discount  + \epsilon$
+
+```{r que7_model}
+
+model_ml <- lm(Sales~Temperature + Advertising + Discount, data = ml_df)
+summary(model_ml)
+
+```
+
+**Global F test:**<br />
+<br>$H_{o}$ : $\beta_{1}$ $=$ $\beta_{2}$ $=$ $\beta_{3}$ $=$ 0 <br />
+<br>$H_{1}$ : At least one beta(i) is not equal to zero.
+
+**Hypothesis: Temperature**<br />
+<br>$H_{o}$ : $\beta_{1}$ $=$ 0 <br />
+<br>$H_{1}$ : $\beta_{1}$ $\neq$ 0 
+
+**Hypothesis: Advertising**<br />
+<br>$H_{o}$ : $\beta_{2}$ $=$ 0 <br />
+<br>$H_{1}$ : $\beta_{2}$ $\neq$ 0 
+
+**Hypothesis: Discount**<br />
+<br>$H_{o}$ : $\beta_{3}$ $=$ 0 <br />
+<br>$H_{1}$ : $\beta_{3}$ $\neq$ 0 
+
+
+```{r hypothesis_testing,echo=FALSE}
+
+cat("The global F tests suggests that the model is significant at 5% significance level. However, only Advertising is statistically significant as per the individual t tests.\n\nt-test for Temperature : failed to reject null hypothesis; There is no statistically significant evidence that Temperature and Sales have linear relationship \n\nt-test for Advertising : Reject Null Hypothesis; There is statistically significant evedence that Advertising is linearly related to Sales \n\n t-test for Discount : failed to reject null hypothesis; There is no statistically significant evidence that Discount and Sales have linear relationship")
+
+```
+B) Examine the data for evidence of multicollinearity.
+
+```{r correlation_test}
+
+cor(ml_df)
+
+```
+
+
+```{r,echo=FALSE}
+
+cat("The above results suggest that there is are strong positive correlations between the Advertising and Temperature, also between Advertising and Discount")
+
+```
+
+```{r vif_test}
+
+car::vif(model_ml)
+
+
+```
+
+```{r}
+1/(1-0.9345)
+```
+
+
+```{r vif_test_result,echo=FALSE}
+
+cat("As the advertising vif value is greater than 10 and greater than 1/(1-R2) value, suggests multicollinearity exists between the variables.")
+
+```
+
+```{r explanation_que7, echo=FALSE}
+cat("Advertising and temperature aren't usually related. However, in this business case, the management considers temperature to be an important feature. \n\nWe should not remove any variables due to multicollinear; removing important variables can lead to omitted variable bias. \n\nEvery time a regression is rerun with different combinations of variables, we risk encountering a specification that fits because it accidentally works for the particular data set involved, not because it is the truth.")
+
+
+```
