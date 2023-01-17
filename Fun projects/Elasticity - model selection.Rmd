@@ -1,5 +1,5 @@
 ---
-title: "III Home Work 2 | Group 4"
+title: "Elasticity | Group 4"
 author: "Sumanth Munnangi"
 date: "`r Sys.Date()`"
 output: html_document
