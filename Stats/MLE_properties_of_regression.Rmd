@@ -1,0 +1,626 @@
+---
+title: "Stats Simulations"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(boot)
+library("ggplot2")
+library(corrplot)
+
+```
+
+
+## Question 1 - 
+
+###### Please refer the PDF proof attached - this is just a simulation to support the proof not part of the original question
+
+
+```{r}
+set.seed(123)
+
+n_noise <- 1000
+x_variable <- rnorm( n_noise, mean = 0,sd = 1  )
+
+e_unif <- runif(n_noise, min = -1, max = 1)
+
+
+y_unif <- 3*x_variable + e_unif
+
+plot(x_variable, y_unif, main = "Scatterplot of x and y", xlab = "x variable", ylab = "y uniform")
+```
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+model_unif <- lm(y_unif ~ x_variable - 1)
+plot(model_unif)
+```
+
+The errors are not normal - as expected 
+
+```{r}
+set.seed(459)
+
+e_norm <- rnorm(n_noise, mean = 0, sd = 1)
+y_norm <- 3*x_variable + e_norm
+
+plot(x_variable, y_norm, main = "Scatterplot of x and y", xlab = "x", ylab = "y")
+
+```
+
+Errors are perfectly normal - as expected 
+
+```{r}
+
+model_norm <- lm(y_norm ~ x_variable-1)
+summary(model_norm)
+
+```
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+plot(model_norm)
+```
+
+
+```{r}
+# Bootstrap 95% CI for regression coefficients
+
+sample_data <- data.frame(y_norm,x_variable)
+
+# function to obtain regression weights
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(coef(fit))
+}
+
+# bootstrapping with 1000 replications
+
+results <- boot(data=sample_data, statistic=bs,
+   R=1000, formula=y_norm~x_variable -1 )
+
+# view results
+results
+plot(results, index=1) 
+```
+
+```{r}
+# Bootstrap 95% CI for regression coefficients
+
+sample_data <- data.frame(y_unif,x_variable)
+
+# function to obtain regression weights
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(coef(fit))
+}
+
+# bootstrapping with 1000 replications
+
+results <- boot(data=sample_data, statistic=bs,
+   R=1000, formula=y_unif~x_variable -1 )
+
+# view results
+results
+plot(results, index=1) 
+
+```
+
+
+If you look closely the standard error for least squares of the uniform distributed error is lower than the model with normal distributed errors. In the graph above the beta value is also lower.  
+
+This is only a simulation with bootstraping, please look at the pdf proof for this question
+
+## Question 2 
+
+```{r}
+
+n <- 2
+
+birthday_prob <- function(n){
+    
+  p_val <- 1
+  
+  for (i in (365-n+1):365) {
+    p_val <- p_val*(i/365)
+  }
+  
+  final_p <- 1-p_val
+  return(final_p)
+}
+
+final_p <- birthday_prob(n)
+
+
+while (final_p < 0.5){
+  n <- n+1
+  final_p <- birthday_prob(n)
+}
+
+
+cat("The minimum size of the group such that the probability is at least 0.5 is", n)
+
+
+```
+
+
+
+## Question 3
+
+
+$\textbf{This is not the best approach for the following reasons -  }$
+
+1. The partial differentiation $∂_{f}/∂x_{j}$ returns the $\beta_{j}$ coefficients of the respective $x_{j}$ independent variable. The $\beta_{j}$ variables are influenced by scale of $x_{j}$. If any of the $x_{j}$ variables have different scale compared to others, the corresponding $\beta_{j}$ values will also be impacted. This will falsely identify the variables as important or non-important and is not reliable
+
+2. Partial differentiation does not account for variability in model. For different models, the $\beta_{i}$ values change significantly. Hence, the outcome is also different for each model. This makes the partial differentiation method unreliable
+
+3. The partial differentiation only represents the local rate of change and one can not conclude the global importance of a variable. This makes more sense in optimizing the MLE with a Convex loss function. In other words, If the model is non linear and complex a single degree partial differentiation may not provide the true importance of a given variable
+
+$\textbf{Alternatives to this method - }$
+ 
+1. You can standardize all the variables before comparing the $\beta_{j}$ values. This may give a better change at getting the true important variables
+
+2. A better way would be to compare the p-values. p-values mitigate the issue of scale - the $\beta_{j}/SE(\beta{j})$ test statistic is not effected by scale. But we should not compare the p-value as it has it's own issues
+
+3. Marginal effects and Permutation feature importance can be a great alternatives to find feature importance in tree based ensemble models
+
+
+## Question 4
+
+Over fits with a lower k value 
+
+This is interesting question. If the K is small say 2 or 3, each folds contain a significant chunk of the data. This means the model have chances to over fit on each of these folds and may not generalize the model well. This means, the cross-validation will most likely choose a more complex model when compared to a k value of say 5 to 10. 
+
+The small k value of 2 for example leads to a large variance as the data is trained on only half of the total data for each fold. For a high value of k, there is a higher bias but lower variance, allowing for generalization of our model. It may lead to the selection of overly simple models that under fit the data, since the model's performance is unlikely to improve significantly even with the addition of more data. So a great bias variance trade off value for k is 10.
+
+With all that said, the value of K doesn't matter much if each training set fold has enough data 
+
+
+## Question 5 
+
+Both the methods are very wrong for the following reasons
+
+For method one - 
+
+1. Variance is dependent on scale; for a independent variable with high variance this method would consider this variable as important 
+
+2. This method does not factor in the correlations with the other independent variables or even the correlation with y variable 
+
+3. Missing variable bias due to in-efficient variable selection methods
+
+4. Given 1000 variables the r squared is always high so I suggest using AIC, BIC, AICc instead of multiple- r squared value to pick the best model
+
+For Method two - 
+
+1. This method does not consider the correlations among the independent variables. It is possible that the variables correlate and together perform better than independent performance
+
+2. There may be interactions among independent variables. Even though the individual correlation is less, the total variance explained with an interaction term may be much higher. 
+
+3. Given 1000 variables the r squared is always high so I suggest using AIC, BIC, AICc instead of multiple- $R^2$ value to pick the best model
+
+Suggestions for variable selection - 
+
+1. It is suggested to use regularization methods instead of simple rule based methods. Do L1 regularization - The lasso
+
+2. You should also make sure you always include the confounding variables even against the regularization suggestion to remove it. For example, removing price in predicting sales is not a good idea. 
+
+3. You can consider doing FDR correction - the BH method to account for the false detection rate due to high number of predictors
+
+
+## Question 6 
+
+```{r}
+
+ds_df <-read.table("Hamilton.txt",h=T)
+
+colnames(ds_df) <- c("y", "x", "z")
+
+head(ds_df)
+
+```
+
+
+```{r}
+
+lm.out.x <-lm(y~x,data=ds_df)
+summary(lm.out.x)
+
+lm.out.z <- lm(y~z,data=ds_df)
+summary(lm.out.z)
+
+```
+
+From the above two models, it is super clear that the variables are not significant. The high p-values suggest the same. Let's check if adding both x and z together in the model makes a difference.   
+
+```{r}
+
+lm.out.xz <-lm(y~x+z,data=ds_df)
+
+summary(lm.out.xz)
+
+```
+
+The above model is statistically significant with a global F test's P-value < 2.2e-16. Both the x and z variables are valid and are highly statistically significant. Hence the data set is a good example where the independent variables alone are insignificant. However, when introduced together, the full model is highly significant.
+
+Another fun example of a similar type. This is a time series example with just two seasonality components or you can think of this as a similarity score based on cosine similarities.
+
+```{r}
+
+set.seed(144) # for reproducibility
+
+x <- rnorm(100, mean = 75, sd = 5) 
+
+
+z <- rpois(100, lambda = 200) # lets take a random value z with poisson distribution
+
+
+new_x <- cos(x*180/pi)^2 
+new_y <-  sin(z*180/pi)^2
+
+y  <-  cos(x*180/pi)^2 + 2*sin(z*180/pi)^2 + rnorm(100, mean = 0, sd = .25) # add error term as well :)
+
+fit1 <- lm(y ~ cos(x*180/pi)^2)
+summary(fit1)
+
+
+fit2 <- lm(y ~ sin(z*180/pi)^2)
+summary(fit2)
+
+
+fit3 <- lm(y ~   new_x + new_y)
+summary(fit3)
+
+```
+
+In the example above, imagine you are predicting a variable y that is based on cosine similarities between two variables defined by x and z. 
+
+It is clear that from the above regression output, the models lm(formula = y ~ cos(x * 180/pi)^2) and lm(formula = y ~ cos(z * 180/pi)^2) are not significant with p-values 0.5363 and 0.352 respectively. 
+
+However, when we run the model lm(formula = y ~ new_x + new_y) with both the variables, the full model is significant with very low p-value for both the independent variables and a multiple r-squared of .9014.
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+
+plot(fit1)
+
+```
+
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+plot(fit2)
+```
+
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+plot(fit3)
+```
+
+
+From the above diagnostic plots, it is clear that addition of both the cos and sin terms fixed all the inconsistencies in the model. The residuals look great and are normally distributed with no evidence of heteroscedasticity. Which is great. We can infer the example as a time series data components as well with two independent seasonal components. 
+
+
+## Question 7 
+
+7.1 
+
+```{r}
+# Plug-in predictive interval for sales in wk2 for someone who had the training
+
+# standard deviation of residuals
+sd_residuals <- 7.311
+
+# predicted value of wk2 for sales in wk1 = 95
+predicted_value <- 18.47174 + 0.81866 * 95 - 0.84577
+
+# standard error for the predicted value
+standard_error <- 7.311 
+
+t_critical <- qt(p = .975, df = 97,lower.tail = T)
+
+
+# lower and upper bounds of the predictive interval
+lower_bound <- predicted_value - t_critical * standard_error
+upper_bound <- predicted_value + t_critical * standard_error
+
+# plug-in predictive interval
+cat("predictive interval for sales in wk2 for someone who had the training is",c(lower_bound, upper_bound))
+
+```
+
+7.2 
+
+```{r}
+
+# standard deviation of beta 1
+sd_beta_1 <- 0.0694
+
+# beta 1 value
+beta_val <- 0.81866
+
+t_critical <- qt(p = .975, df = 97,lower.tail = T)
+
+
+# lower and upper bounds of the predictive interval
+lower_bound <- beta_val - t_critical * sd_beta_1
+upper_bound <- beta_val + t_critical * sd_beta_1
+
+# plug-in predictive interval
+cat("predictive interval for sales in wk2 for someone who had the training is",c(lower_bound, upper_bound))
+
+
+```
+
+7.3
+
+$H_{0}: β1 = 0$
+
+$H_{0}: β1 \ne 0$
+
+```{r}
+
+t_stat <- 11.791
+  
+t_critical <- 2*pt(q = t_stat, df = 97,lower.tail = F)
+
+cat("Based on the p-value ", t_critical, "we have significat statistical evidence that beta 1 is not equal to 0. We reject the null and accept the claim")
+
+
+```
+
+7.4
+
+```{r}
+
+# standard deviation of beta 1
+sd_beta_2 <- 1.47809
+
+# beta 1 value
+beta_val <- -0.84577
+
+t_critical <- qt(p = .975, df = 97,lower.tail = T)
+
+
+# lower and upper bounds of the predictive interval
+lower_bound <- beta_val - t_critical * sd_beta_2
+upper_bound <- beta_val + t_critical * sd_beta_2
+
+# plug-in predictive interval
+
+cat("predictive interval for sales in wk2 for someone who had the training is",c(lower_bound, upper_bound))
+
+
+```
+
+7.5
+
+$H_{0}: β2 = 0$
+
+$H_{0}: β2 \ne 0$
+
+```{r}
+
+t_stat <- -0.572
+  
+t_critical <- 2*pt(q = t_stat, df = 97, lower.tail = T)
+
+cat("Based on the p-value ", t_critical, "we do not have significat statistical evidence that beta 2 is not equal to 0 at any significant levels. We fail to reject the null and accept the claim")
+
+```
+
+7.6
+
+$H_{0}: β1 = 1$
+
+$H_{0}: β1 \ne 1$
+
+```{r}
+
+
+t_stat <- (0.81866-1)/0.06943
+  
+t_critical <- 2*pt(q = t_stat, df = 97,lower.tail = T)
+
+cat("Based on the p-value ", t_critical, "we have significat statistical evidence that beta 1 is not equal to 0 at 5% signifincance level. We reject the null and accept the claim")
+
+```
+
+7.7 
+
+No, this is not a reasonable reaction 
+
+The p-value of 0.56851 for the Treatment dummy variable suggests that the treatment variable is not significant. It is not advised to interpret beta coefficients for the same, as the values can be erroneous. We just don't have enough evidence that there is any kind of treatment effect.
+
+## Question 8
+
+```{r}
+
+data(happy, package="faraway")
+
+```
+
+Check the data loaded
+
+```{r}
+
+head(happy)
+
+```
+
+The Sex variable can be treated as a factor, given that it is a dummy variable - This will make it easy to visualize data later 
+
+```{r}
+
+happy$sex <- factor(happy$sex)
+
+```
+
+
+```{r}
+
+pairs(happy~ money + love, data = happy)
+
+```
+
+```{r}
+
+corrplot(cor(happy[c("happy","money","love","work")], method = "spearman"), tl.cex = 0.9, method = "number", type='lower',title = "Correlation Plot")
+
+```
+
+Happiness and love are highly correlated. Work and Happy are correlated as well. 
+
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+
+ggplot(happy, aes(x = money, y = happy, color=work)) +
+geom_point(cex=3) + 
+geom_smooth(method='lm', formula = "y~x") +
+labs(x="Money", y="Happiness")+
+  ggtitle("Happy vs Money ~ Work") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(happy, aes(x = money, y = happy, color=love)) +
+geom_point(cex=3) + 
+geom_smooth(method='lm', formula = "y~x") +
+labs(x="Money", y="Happiness")+
+  ggtitle("Happy vs Money ~ Love") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+From the above graph, as money increases, Happiness seems to increase - So does the Work satisfaction. Also from the graph on the right - as Money increases, Love also increases. Most of the people on the higher love scale are happy irrespective of the money made. People with low money and low on the love scale are usually unhappy. So I believe love has a higher weight on happiness compared to Money. 
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+
+ggplot(happy, aes(x = money, y = happy, size=love, color=work)) + 
+  geom_point()+
+  geom_smooth(method='lm', formula = "y~x")+
+  xlab("Money") +
+  ylab("Happiness") +
+  ggtitle("Relationship between Money, Work, Love, and Happiness") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(happy, aes(x = money, y = happy, color = sex)) +
+  geom_point(cex=5) +
+   geom_smooth(method = "lm", formula = "y~x",se = FALSE) +
+  xlab("Money") +
+  ylab("Happiness") +
+  ggtitle("Relationship between Money, Sex, and Happiness") +
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_color_discrete(name = "Sex")
+
+ggplot(happy, aes(x = money, y = happy, color = factor(love))) +
+  geom_point(cex=5) +
+   geom_smooth(method = "lm", formula = "y~x",se = FALSE) +
+  xlab("Money") +
+  ylab("Happiness") +
+  ggtitle("Relationship between Money, Love, and Happiness") +
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_color_discrete(name = "Love")
+
+ggplot(happy, aes(x = money, y = happy, color = factor(work))) +
+  geom_point(cex=5) +
+   geom_smooth(method = "lm", formula = "y~x",se = FALSE) +
+  xlab("Money") +
+  ylab("Happiness") +
+  ggtitle("Relationship between Money, Work, and Happiness") +
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_color_discrete(name = "Work")
+
+
+```
+
+The graphs above show that People with great job are usually happier and also make more money. They also seem to be higher on the love scale which is represented by the size of the points.
+
+The second graph on the top right corner suggests that people with high money seem to be happier and also mentioned that they are satisfied with their sexual activity. It is also interesting that people on lower scale of happiness are also sexually satisfied; it suggests that sex column is not a good explanatory variable of happiness. 
+
+The third graph on the bottom right suggests that people on higher scale of love are happy and the ones that are not are low on the happiness scale. There is a clear distinction of love and money. Looks like there is an interaction effect of these two variables. We can test this later by running a regression model with the interaction term.
+
+The fourth graph on the bottom right suggests that there is a clear distinction in money, happiness and work. It seems like there is an interaction between money and work. We can test this later by running a regression model with the interaction term. 
+
+Lets explore the data even more by regressing Happiness with other features 
+
+```{r}
+# Full Model 
+lm.out.base <- lm(happy ~ ., data = happy)
+
+# interaction with Money and Sex variables 
+lm.out.sex <- lm(happy ~ money*sex + ., data =happy)
+# interaction with Money and Love variables 
+lm.out.love <- lm(happy ~ money*love + ., data =happy)
+# Including interactions from both the variables 
+lm.out.full <- lm(happy ~ money*love + money*sex + ., data =happy)
+# removing sex variable as it is not significant 
+lm.out.final <- lm(happy ~ money*love + work , data =happy)
+
+happy_df <- happy
+
+happy_df$money <- log(happy_df$money +1)
+
+# Log transformations on money to account of non even distribution 
+
+lm.out.trans <- lm(happy ~  money*love + work , data = happy_df)
+
+```
+
+
+Let's write a function understand model performance  
+
+```{r}
+
+# Get model performance 
+get_performance <- function(any_lm_model){
+  
+  aic_val <- AIC(any_lm_model)
+  bic_val <- BIC(any_lm_model)
+  summary_val <- summary(any_lm_model)
+  
+  r2 <- summary_val$r.squared
+  r2a <- summary_val$adj.r.squared
+  form <- deparse(summary_val$call)
+  return (data.frame(form, aic_val, bic_val, r2, r2a))
+  }
+
+# from base model 
+
+model_df <- get_performance(lm.out.base)
+
+model_df <- rbind(model_df,get_performance(lm.out.sex))
+
+model_df <- rbind(model_df,get_performance(lm.out.love))
+
+model_df <- rbind(model_df,get_performance(lm.out.full))
+
+model_df <- rbind(model_df,get_performance(lm.out.trans))
+
+model_df <- rbind(model_df,get_performance(lm.out.final))
+
+```
+
+```{r}
+model_df
+```
+
+Although the log transformed model has better performance metrics, I would prefer to consider the final model in the form lm(formula = happy ~ money * love + work, data = happy). I removed sex variable as it is not linearly related to happiness.
+
+```{r}
+
+summary(lm.out.final)
+
+```
+
+All the terms are significant with a global p value of 1.628e-10. Love seems to have a higher influence on happiness with a 3.68 increase in happiness scale for an increase in love scale on an average. interestingly money and love interaction has a negative linear impact on happiness. An increase in work by one scale the happiness increases by 0.55 on an average. An increase in money by one scale the happiness increases marginally by 0.0834 on an average. 
+
+```{r, fig.show='hold', fig.width= 7, out.width="50%"}
+
+plot(lm.out.trans)
+
+```
+
+The above diagnostic graphs suggest there is some non constant variance with some residuals having some outliers. I am not transforming the data due to increase in complexity and lower interpretability.
