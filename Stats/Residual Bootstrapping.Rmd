@@ -1,77 +1,229 @@
+---
+title: "Residual Bootstrapping for regression"
+author: "Sumanth"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r library}
+
 library(ISLR2)
 library("ggplot2")
-# Read Data
+
+```
+
+### Applied Problem - bootstrap for regression
+
+```{r Applied_problem}
+
+# Read Data 
+
 data(Auto)
+
 head(Auto)
+
+```
+
+```{r}
+
 ggplot(data = Auto)+
-geom_point(mapping = aes(x=horsepower,y=mpg))
-y <- Auto$mpg
+  geom_point(mapping = aes(x=horsepower,y=mpg))
+
+```
+
+
+#### Question 1
+
+```{r}
+
+y <- Auto$mpg 
+
 x <- Auto$horsepower
+
 x2 <- Auto$horsepower^2
+
 lm.out <- lm(y ~ x)
+
 sum.lm.out <- summary(lm.out)
+
+```
+
+
+
+```{r}
+
 coeff.lm <- sum.lm.out$coefficients[c("x"),]
+
+
+```
+
+#### Question 2
+
+```{r}
+
 run_boot <- function(sum.lm.out,lm.out) {
+
 coef_vals <- c()
+
 counter <- 0
+
 set.seed(12345)
-while (counter <1000) {
-resids <- sum.lm.out$residuals
-names(resids) <- NULL
-boot_resids <- sample(x = resids, size = length(resids),replace = T)
-y_hat <- predict(lm.out)
-names(y_hat) <-  NULL
-y_hat <- y_hat + boot_resids
-lm.out <- lm(y_hat ~ x + x2)
-sum.lm.out <- summary(lm.out)
-coeff.val <- sum.lm.out$coefficients[c("x"),]['Estimate']
-names(coeff.val) <- NULL
-coef_vals <- append(coef_vals, coeff.val)
-counter <- counter + 1
+
+while (counter <1000) { 
+  resids <- sum.lm.out$residuals
+  
+  names(resids) <- NULL
+  
+  boot_resids <- sample(x = resids, size = length(resids),replace = T)
+  
+  
+  y_hat <- predict(lm.out)
+  names(y_hat) <-  NULL
+  
+  y_hat <- y_hat + boot_resids
+  
+  lm.out <- lm(y_hat ~ x + x2)
+  
+  sum.lm.out <- summary(lm.out)
+  
+  coeff.val <- sum.lm.out$coefficients[c("x"),]['Estimate']
+  
+  names(coeff.val) <- NULL
+  
+  coef_vals <- append(coef_vals, coeff.val)
+  counter <- counter + 1
+
 }
 return (coef_vals)
 }
+  
+```
+
+
+
+```{r}
+
 options("scipen"=100, "digits"=4)
+
 coef_boot_vals <- run_boot(sum.lm.out = sum.lm.out, lm.out = lm.out)
+
 standard_error <- sd(coef_boot_vals)/sqrt(1000)
+
 theoretical_se <- coeff.lm['Std. Error']
+
+```
+
+
+```{r}
+
 cat("Bootstrapped errors are", standard_error, "respectively for x and x^2\n\n")
 cat("Theoretical errors are", theoretical_se, "Theoretical errors\n\n")
+
 cat("The Standard errors from model are overestimated by ",standard_error/theoretical_se, "respectively for x and x^2")
+
+```
+
+
+
+#### Question 3
+
+```{r}
+
 lm.out.2 <- lm(y ~ x + x2)
+
 sum.lm.out.2 <- summary(lm.out.2)
+
 coeff.lm.2 <- sum.lm.out.2$coefficients[c("x","x2"),]
+
+```
+
+
+```{r}
+
+
 run_boot_2 <- function(sum.lm.out2,lm.out2) {
+
 coef_vals1 <- c()
 coef_vals2 <- c()
 counter <- 0
+
 set.seed(12345)
-while (counter <1000) {
-resids <- sum.lm.out2$residuals
-names(resids) <- NULL
-boot_resids <- sample(x = resids, size = length(resids),replace = T)
-y_hat <- predict(lm.out2)
-names(y_hat) <-  NULL
-y_hat <- y_hat + boot_resids
-lm.out2 <- lm(y_hat ~ x + x2)
-sum.lm.out2 <- summary(lm.out2)
-coeff.val1 <- sum.lm.out2$coefficients[c("x"),]['Estimate']
-names(coeff.val1) <- NULL
-coeff.val2 <- sum.lm.out2$coefficients[c("x2"),]['Estimate']
-names(coeff.val2) <- NULL
-coef_vals1 <- append(coef_vals1, coeff.val1)
-coef_vals2 <- append(coef_vals2, coeff.val2)
-counter <- counter + 1
+
+while (counter <1000) { 
+  resids <- sum.lm.out2$residuals
+  
+  names(resids) <- NULL
+  
+  boot_resids <- sample(x = resids, size = length(resids),replace = T)
+  
+  
+  y_hat <- predict(lm.out2)
+  names(y_hat) <-  NULL
+  
+  y_hat <- y_hat + boot_resids
+  
+  lm.out2 <- lm(y_hat ~ x + x2)
+  
+  sum.lm.out2 <- summary(lm.out2)
+  
+  coeff.val1 <- sum.lm.out2$coefficients[c("x"),]['Estimate']
+  
+  names(coeff.val1) <- NULL
+  coeff.val2 <- sum.lm.out2$coefficients[c("x2"),]['Estimate']
+  
+  names(coeff.val2) <- NULL
+  
+  coef_vals1 <- append(coef_vals1, coeff.val1)
+  coef_vals2 <- append(coef_vals2, coeff.val2)
+  
+  counter <- counter + 1
+
 }
 coef_vals <- data.frame(coef_vals1, coef_vals2)
 return (coef_vals)
 }
+
+```
+
+
+
+```{r}
+
 coef_boot_vals_2 <- run_boot_2(sum.lm.out.2,lm.out.2)
+
 standard_error2 <- sapply(coef_boot_vals_2, sd)/sqrt(1000)
+
 names(standard_error2) <- c("x","x2")
+
 theoretical_se2 <- coeff.lm.2[,'Std. Error']
+
+
+```
+
+
+```{r}
+
 cat("Bootstrapped errors are", standard_error2, "respectively for x and x^2\n\n")
 cat("Theoretical errors are", theoretical_se2, "Theoretical errors\n\n")
+
 cat("The Standard errors from model are overestimated by ",standard_error2/theoretical_se2, "respectively for x and x^2")
+
+```
+
+```{r}
+
 cat("The scatter plot suggests that the relationship is non linear and y ~ x + x^2 makes more sense; the first model is mis-specified. Hence the standard errors are overestimated by the model")
+
+```
+
+
+
+
+
+
+
