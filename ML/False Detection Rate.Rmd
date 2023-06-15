@@ -1,0 +1,403 @@
+---
+title: "ML Homework 1 | Sumanth"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo= F, include= F}
+
+library("dplyr")
+
+library('fastDummies')
+
+library(ggplot2)
+
+```
+## Question 1
+
+Q1 - Write code that produces a 10,000 x 1001 matrix (rows x cols) of random numbers drawn from N(0,1). Seed your code using the last 4 digits of your phone number (this number will be different for everyone). Every time you run the code, it should now yield the exact same (“random”) data set.
+
+```{r Q1}
+
+# setting the seed to the last four digits of my phone number
+
+set.seed(0302)
+
+# create a random 10000*1001 numbers from a normal distribution with mean 0 and standard deviation 1
+
+random_normal <- rnorm(10000*1001,mean = 0,sd = 1)
+
+# create a data frame out of it
+
+data_df <- data.frame(matrix(random_normal,ncol = 1001, byrow = TRUE))
+```
+
+## Question 2
+
+Q2 - Treat the first column as “y” and the remaining 1000 columns as x’s.
+
+```{r Q2}
+
+# set the column names
+
+col_names  <- c("Y","X1")
+
+col_names <- append(col_names,colnames(data_df)[2:1000])
+
+colnames(data_df) <- col_names
+
+```
+
+
+```{r}
+
+# Check the final data.frame
+
+print(c(nrow(data_df),ncol(data_df)))
+
+head(data_df[,1:4])
+
+```
+## Question 3
+
+Q3 - Regress y on x’s. Is an intercept needed?  Why?  Why not?
+
+```{r Q3}
+
+# run the linear model
+
+lm.out <- lm(Y ~ . -1, data = data_df)
+
+```
+
+
+```{r Q3_text, echo = F}
+
+cat("Intercept is not needed; the response variable and regressors are standardized. The intrecept will be zero. The mean of all the regressors is zero so is the mean of regressand. So, it doens't make sense to add the intercept")
+
+```
+
+## Question 4
+
+Q4 - Create a histogram of the p-values from the regression in Q3. What distribution does this histogram look like?
+
+```{r, fig.height=8, fig.width= 20}
+lm.out.summary <- summary(lm.out)
+
+coef_df <- data.frame(lm.out.summary$coefficients)
+
+colnames(coef_df) <- c("Estimate", "Std.Error", "t.value", "Pval")
+
+hist(coef_df$Pval,breaks = 40)
+
+```
+
+```{r, echo= F}
+cat("The histogram looks uniform with some noise as expected. Looks like a Null hypothesis :)")
+```
+
+
+## Question 5
+
+Q5 - How many “significant” variables do you expect to find knowing how the data was generated?   
+
+```{r Q5_text, echo= F}
+cat("Given the data is a simple random sample from N(0,1), we should expect to find alpha % of variables as significant. For example, for a 5% significance level, we should see 0.05*1000 = 50 significant variables. Let's look at the number of significant variables at 1% sigificance level. Ideally this should be close to 0.01*1000 = 10.")
+
+```
+Q5 - How many “significant” variables does the regression yield if alpha = 0.01?
+
+```{r Q5}
+
+nrow(coef_df[coef_df$Pval <= 0.01,])
+
+
+```
+
+Q5 - What does this tell us?
+
+```{r Q5_text2, echo= F}
+
+cat("All the variables that seem 'significant' are just by chance and may not give the true significant variables. So we should not blindly follow the P-Values and consider the implications with multiple hypothesis testing. We need to adjust the critical value before making inferences.")
+
+```
+
+## Question 6
+
+Q6 - Given the p values you find, use the BH procedure to control the FDR with a q of 0.1. How many “true” discoveries do you estimate?
+
+
+```{r}
+
+# using Prof. Jorn's code 
+
+fdr <- function(pvals, q, plotit=F){
+  pvals <- pvals[!is.na(pvals)]
+  N <- length(pvals)
+  
+  k <- rank(pvals, ties.method="min")
+  alpha <- max(pvals[ pvals <= (q*k/N) ])
+  
+  if(plotit){
+    sig <- factor(pvals <= alpha)
+    o <- order(pvals)
+    plot(pvals[o], log="xy", col=c("grey60","red")[sig[o]], pch=20, 
+      ylab="p-values", xlab="tests ordered by p-value", main = paste('FDR =',q))
+    lines(1:N, q*(1:N) / N)
+  }
+  
+  return(alpha)
+}
+
+fdr_pval <- fdr(pvals = coef_df$Pval,q = 0.1)
+
+cat(sprintf("The new cutoff p-value (new adjusted alpha) is %.8f and there are %.f statistically significant values.", fdr_pval,nrow(coef_df[coef_df$Pval <= fdr_pval,])))
+
+```
+
+
+```{r bh_method}
+
+# The easy methods 
+
+# BH(coef_df$Pval, alpha = 0.01)$Adjusted.pvalues
+
+# p.adjust(coef_df$Pval,method = "BH")
+
+# The right long way -> 
+
+bh_method <- function(order = 1:1000,pvals, q = 0.1) {
+  n <- length(pvals)
+  
+  k <- rank(pvals, ties.method="min")
+  
+  out <- data.frame(order,pvals, rank= k, bh_c = q*k/n)
+  
+  return (out)
+}
+
+
+bh_df <- bh_method(pvals = coef_df$Pval)
+
+bh_df <- bh_df %>% arrange(rank)
+
+adjusted_pval <- c()
+
+for (i in bh_df$bh_c){
+  adjusted_pval <- append(adjusted_pval,max(bh_df$pvals[ bh_df$pvals <= i ]))
+}
+
+bh_df <- cbind(bh_df,adjusted_pval)
+
+head(bh_df)
+
+bh_df <- bh_df %>% arrange(order) %>% select(pvals,bh_c,adjusted_pval)
+
+
+coef_df <- cbind(coef_df,bh_df[,c(2,3)])
+
+
+head(coef_df)
+
+```
+
+
+```{r}
+
+# Using the long method
+
+
+cat("New alpha is : ",coef_df[coef_df$Pval <= coef_df$adjusted_pval,c('Pval')],". The number of P-values with the critical values les than this value is ",sum(coef_df$Pval <= coef_df$adjusted_pval),"\nThe reason why this works is that the new adjusted pvalue closely follows the FDR cut line. Lets visualize it :).")
+
+N <- 1000
+
+
+
+coef_df <- coef_df %>% arrange(adjusted_pval)
+
+sig <- factor(coef_df$Pval <= coef_df$adjusted_pval)
+o <- order(coef_df$Pval)
+
+plot_val <-ggplot(data = coef_df[1:N,])+
+  geom_point(mapping = aes(1:N,adjusted_pval ), color = "blue")+
+  geom_point(mapping = aes(1:N,Pval ), col=c("grey60","red")[sig[o]])+
+  geom_line(mapping = aes(1:N,1:N*0.1/N))
+plot_val +scale_x_continuous(trans='log') +scale_y_continuous(trans='log')
+
+
+```
+
+```{r, echo= F}
+cat("See in the above graph, it is clear the adjusted_pvalues are below the FRD cutoff line always. So if the pvalue is less than or equal to adjusted p_val then it is significant.")
+
+```
+
+
+
+## Question 7
+
+Q7 Explore the “autos.csv” data. Include any metrics and / or plots you find interesting.
+
+```{r Q7 read data}
+
+auto_df <- read.csv("autos.csv")
+
+summary(auto_df)
+
+```
+
+```{r, echo= F}
+
+cat("Auto.csv contains a few categorical variables so we can convert them to dummy variables to use them in the model. ")
+
+```
+
+```{r,fig.height=30, fig.width= 50}
+
+plot(auto_df[,c(8:12,14:15,17:24)])
+
+```
+
+```{r, echo = F}
+
+cat("The scatter plots suggest that there may be a Multicollinearity issue. Eg - > Curb weigth seems to have a positive association with a lot of other variables. We will not remove any variables as of now as the idea is not model selection, its rather adjusting for FDR")
+
+```
+
+```{r Q7 dummy}
+
+auto_dummy_df <- dummy_cols(auto_df,remove_first_dummy = T, 
+                      select_columns = c('make','fuel_type','aspiration','num_of_doors','body_style',
+                                         'drive_wheels', 'engine_location','engine_type', 'fuel_system'), 
+                      ignore_na = T,
+                      remove_selected_columns = T)
+
+
+```
+
+## Question 8 
+
+Q8 - Create a linear regression model to predict price. Explain your model.
+
+```{r}
+
+lm.out.auto <- lm(price ~ .,data = auto_dummy_df)
+
+```
+
+```{r}
+
+lm.out.auto.summary <- summary(lm.out.auto)
+
+lm.out.auto.summary
+
+```
+
+```{r, echo = F}
+cat("Looks like there is a perfect Multicollinearity for engine type - ohcf and also for fuel system - idi. This is possible even after removing one 'level' from each category whie creating the dummies. These columns may be similar to other dummies from a different category. So, we can ignore these two for now.")
+
+```
+
+```{r, echo = F}
+cat("The overall model is significant with the p-value for Global F test at well below the significance level of .05 and 0.001. All the variables explain about 96.31 % of the variation in price. Most of the fuel system dummies seem insignificant. However, we do not remove the vaarible just based on pvalue.")
+```
+
+## Question 9
+
+Q9 - Why might false discoveries be an issue?
+
+```{r, echo= F}
+cat("False discoveries may be an issue here. With 55 individual t tests, there is high chance of false discoveries. The probability of getting atleast one significat result by chance is 1 - (1 - 0.5)^55 = 0.9404. So clearly there is a high chance of false discoveries")
+
+```
+## Question 10
+
+Q10 - Use the BH procedure to control the FDR with a q of 0.1. How many true discoveries do you estimate? Plot the cutoff line together with the significant and insignificant p-values.
+
+
+```{r, echo= F}
+
+coef_auto_df <- data.frame(lm.out.auto.summary$coefficients)
+
+colnames(coef_auto_df) <- c("Estimate", "Std.Error", "t.value", "Pval")
+
+cat("Significant p-values before BH method: ", sum(coef_auto_df$Pval <= 0.05))
+
+```
+
+```{r}
+
+
+
+
+bh_auto_df <- bh_method(order = 1:53,coef_auto_df$Pval)
+
+bh_auto_df <- bh_auto_df %>% arrange(rank)
+
+adjusted_pval <- c()
+
+for (i in bh_auto_df$bh_c){
+  adjusted_pval <- append(adjusted_pval,max(bh_auto_df$pvals[ bh_auto_df$pvals <= i ]))
+}
+
+bh_auto_df <- cbind(bh_auto_df,adjusted_pval)
+
+head(bh_auto_df)
+
+bh_auto_df <- bh_auto_df %>% arrange(order) %>% select(pvals,bh_c,adjusted_pval)
+
+
+coef_auto_df <- cbind(coef_auto_df,bh_auto_df[,c(2,3)])
+
+```
+Q10 - How many true discoveries do you estimate?
+
+```{r, echo= F}
+
+cat("New 'true' discoveries are: ",sum(coef_auto_df$Pval <= coef_auto_df$adjusted_pval))
+
+```
+Q10 - Plot the cutoff line together with the significant and insignificant p-values.
+
+```{r}
+
+# Using Prof. Jorn's Code
+
+fdr(pvals = coef_auto_df$Pval,q = 0.1,plotit = T)
+
+
+sum(coef_auto_df$Pval <= 0.02956354)
+
+```
+
+```{r}
+
+coef_auto_df <- coef_auto_df %>% arrange(Pval)
+
+N <- 53
+  
+sig <- factor(coef_auto_df$Pval <= coef_auto_df$adjusted_pval)
+o <- order(coef_auto_df$Pval)
+
+plot_val <-ggplot(data = coef_auto_df[1:N,])+
+  geom_point(mapping = aes(1:N,adjusted_pval ), color = "blue")+
+  geom_point(mapping = aes(1:N,Pval ), col=c("grey60","red")[sig[o]])+
+  geom_line(mapping = aes(1:N,1:N*0.1/N))
+plot_val +scale_x_continuous(trans='log') +scale_y_continuous(trans='log')
+
+
+```
+
+
+```{r, echo = F}
+
+cat("See, same same")
+
+```
+
