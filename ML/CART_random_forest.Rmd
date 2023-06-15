@@ -1,0 +1,304 @@
+---
+title: "ML - Random Forest"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=F,include=F}
+
+library(rpart)
+library(caret)
+library(randomForest)
+library(tree)
+
+```
+
+
+### Question 1.1
+
+Please explain how PCA can be used to reduce the number of variables.
+
+#### Ans - 
+
+This is a fun question; let's see. 
+
+PCA by it's own is loss-less it does not reduce the number of variables. It builds a new set of variables that explain the variation in the data better. One can just choose the most "important" variables - the ones that collectively explain most variation and ignore the ones that explain the least variance. And that is how we do variable reduction using PCA 
+
+This makes more sense if we look at the maths involved
+
+1. Build a co-variance matrix -> $XX^T$
+2. Evaluate the eigen-vectors of the co-variance matrix. Each Eigen vector corresponds to a direction in the original space. And the Eigen values corresponds to the variance of all the data in that direction. This is where all the fun is - If we sort the Eigen vectors based on their variance we can potentially find the important variables that explain most of the variance first. 
+3. You can find the cumulative % of variance explained and pick the top variables that explain a minimum % of total variance 
+4. All we need to do now is to multiply the original data with our corresponding eigen vector matrix 
+
+### Question 1.2 
+
+Limitations of using PCA
+
+#### Ans
+
+1. PCA is influenced by scale, one should always transform the data to de-scale it 
+2. PCA is influenced by outliers and can lead to erroneous results
+3. PCs are extremely hard to interpret - > Its almost impossible to make inferences on a model build by PCs 
+4. PCA is biased towards high variance. This leads to loss of information 
+
+
+### Question 2.1 
+
+Classification Tree
+
+#### Ans -
+
+We can use Gini impurity, Entropy, Information Gain Ratio etc. To split on each of the nodes. Here is the algorithm 
+
+For numerical Variables 
+
+1. Sort the data
+2. start off with the first two values -> take mean of these values and split the data on this mean on the first node. 
+3. Calculate Gini impurity or anything else that can help choose the right split
+4. Take the next two values and perform the same. Repeat the process until you cover all the data points. 
+5. Do this for all the variables 
+6. Pick the split that has least Gini impurity
+
+For categorical values 
+
+1. Take each category level and split the data based on this -> yes or no 
+2. Calculate and track the Gini impurity 
+3. Repeat for all the levels in the category and the rest of the categories 
+4. Pick the split on the least Gini impurity score 
+
+One should consider balancing the complexity of a classification tree with the out of sample predictive performance. Too many nodes overfit the data. 
+
+### Question 2.2 
+
+Regression Tree
+
+#### Ans - 
+
+Growing the regression tree works similar to growing a classification tree. However, the metrics are different - We can use SSE - Sum of squares error, Mean Squared error, Root mean squared error, Mean absolute error, or Out of sample r-squared to decide the splits. Mean Absolute Percentage error (MAPE) 
+
+The Steps involved here would be very similar to a classification tree. We just decide to split on the above mentioned metrics than using Gini impurity
+
+
+For numerical Variables 
+
+1. Sort the data
+2. start off with the first two values -> take mean of these values and split the data on this mean on the first node. 
+3. Calculate MAPE or anything else that can help choose the right split
+4. Take the next two values and perform the same. Repeat the process until you cover all the data points. 
+5. Do this for all the variables 
+6. Pick the split that has least MAPE
+
+For categorical values 
+
+1. Take each category level and split the data based on this -> yes or no 
+2. Calculate and track the MAPE 
+3. Repeat for all the levels in the category and the rest of the categories 
+4. Pick the split on the least MAPE score 
+
+
+### Questoin 3 
+
+Please explain how a tree is pruned?
+
+#### Ans 
+
+Pruning helps reduce the complexity of the tree by removing the branches that do not provide significant improvements in prediction accuracy. The steps involved in pruning a regression tree are as follows:
+
+1. Starting at the bottom of the tree, each node is replaced with a terminal node (i.e., a leaf) that represents the mean or median of the training samples in the node. 
+
+2. The SSE or MSE of the validation set is calculated before and after the replacement.  
+
+3. The reduction in OOS MSE is used to determine whether the replacement improves the prediction accuracy. 
+
+4. If the reduction in MSE is not significant, the replacement is accepted, and the node is pruned. If the reduction in OOS MSE is significant, the node is not pruned, and the process continues to the next node.
+
+5.The pruning process continues until all nodes have been evaluated, or until a predefined stopping criterion is met, such as a maximum tree size or a minimum improvement in MSE.
+
+### Question 4
+
+Please explain why a Random Forest usually outperforms regular regression methods (such as linear regression, logistic regression, and lasso regression).
+
+#### Ans
+
+1. A Random forest is a non-linear method - It can fit the data better when compared to the linear models
+2. Random Forest is robust to outliers. Since the model is fit on many random sub-sets of data outliers do not impact the model too much 
+3. It is less prone to over-fitting as the model is built on many subsets of data 
+4. Random forests are more generalizable, the fact that the model is built on many subsets allows it to be more flexible 
+5. Can work with categorical and numerical features with out any extreme transformations 
+6. Random forests have better feature selection compared others -> It provides a measure of feature importance and we can select the features accordingly a good package for this is XGBoost
+
+
+### Question 5 
+
+```{r}
+
+transaction_df <- read.csv("Transaction.csv")
+
+head(transaction_df,2)
+transaction_df <- transaction_df[,-c(1)]
+
+```
+
+```{r}
+
+plot(factor(transaction_df$payment_default))
+
+```
+
+Bit of class imbalance but that's okay.
+
+```{r}
+set.seed(125)
+trainIndex <- sample(nrow(transaction_df), 0.7 * nrow(transaction_df))
+train_df <- transaction_df[trainIndex, ]
+test_df <- transaction_df[-trainIndex, ]
+
+
+model <- tree(factor(payment_default) ~ ., data = train_df, method = "class")
+
+```
+
+
+```{r}
+
+par(mfrow=c(1,3), mar=c(4,2,3,0))
+
+plot(model, main = "Classification tree")
+text(model, all = TRUE, cex = 0.8)
+
+```
+
+```{r}
+pred <- predict(model, test_df, type = "class")
+confmat <- confusionMatrix(factor(pred), factor(test_df$payment_default))
+
+```
+
+
+```{r}
+confmat
+```
+
+```{r}
+
+cat("The Precision of the CART tree is ", confmat$byClass["Precision"],
+"\n\nThe Recall of the CART tree is ",confmat$byClass["Recall"])
+
+```
+
+```{r}
+
+model_cv <- cv.tree(model,K=100)
+
+model_pruned <- prune.tree(model,best=3)
+
+```
+
+
+```{r}
+
+# train_control <- trainControl(method = "cv", number = 10, verboseIter = FALSE)
+
+# Fit the model with cross-validation and pruning
+#model_cv <- train(factor(payment_default) ~ ., data = train_df, method = "rpart",
+#               trControl = train_control, tuneLength = 10)
+
+
+#cp <- model_cv$bestTune[["cp"]]
+
+
+#model_pruned <- prune(model, cp = 0.01)
+
+#print(cp)
+
+```
+
+
+##### Post pruning
+
+```{r}
+
+par(mfrow=c(1,3), mar=c(3,0,2,0))
+
+plot(model_pruned,main = "Classification tree")
+text(model_pruned, all = TRUE, cex = 0.8)
+
+```
+
+
+```{r}
+
+pred <- predict(model_pruned, test_df, type = "class")
+confmat <- confusionMatrix(factor(pred), factor(test_df$payment_default))
+
+
+```
+
+
+```{r}
+
+confmat
+
+```
+
+```{r, echo= F}
+cat("The Precision of the CART tree is ", confmat$byClass["Precision"],
+"\n\nThe Recall of the CART tree is ",confmat$byClass["Recall"])
+```
+
+The Precision after pruning did not change much but Recall got a good boost from 0.78 to 0.916
+
+### Question 5.2 
+
+#### Random Forest
+
+```{r}
+set.seed(254)
+rf_model <- randomForest(factor(payment_default) ~ ., data = train_df, ntree = 300)
+
+```
+
+
+
+```{r}
+rf_model
+```
+
+```{r}
+
+pred <- predict(rf_model, test_df, type = "class")
+confmat <- confusionMatrix(factor(pred), factor(test_df$payment_default))
+
+confmat
+
+```
+
+
+```{r}
+varImpPlot(rf_model)
+
+```
+
+
+```{r, echo= F}
+cat("The Precision of the CART tree is ", confmat$byClass["Precision"],
+"\n\nThe Recall of the CART tree is ",confmat$byClass["Recall"])
+```
+
+```{r, echo= F}
+cat("The random forest has the Recall of 0.945. 
+
+Pruned tree has a Recall of 0.96 The full tree also has a Recall of  0.96
+    
+The Random forest model suggests that PAY_0 is the most important variable and Marriage and Sex is the lowest, which makes sense.")
+
+```
+
+

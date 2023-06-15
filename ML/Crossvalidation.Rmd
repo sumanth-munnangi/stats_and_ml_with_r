@@ -1,0 +1,292 @@
+---
+title: "BAX 452 - Home work 3"
+author: "Sumanth Munnangi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo= F, include= F}
+
+library("caret")
+library("glmnet")
+```
+
+
+```{r read_data}
+
+heart_df <- read.csv("heart.csv")
+
+```
+
+```{r}
+
+nrow(heart_df)
+
+```
+
+
+#### Question 1.1
+
+```{r}
+
+(sapply(heart_df, function(x) sum(is.na(x)))/240 )*100
+
+```
+
+```{r, echo= F}
+
+cat("The Family Records, past_record, and wrist_dim mostly have null values. \n\nEven if we impute them, there will be near perfect multicolliniarity. So there is no point in imputing these columns, it is better to drop these values.\n\nHeight, fat_free_wt, chest_dim, hip_dim, thigh_dim, biceps_dim")
+
+```
+
+```{r plots for Q1, fig.show='hold', fig.width=6, out.width= "33%"}
+
+heart_df <- heart_df[,c(1:6,8:10,12:14,16:20)]
+
+hist(heart_df$height)
+hist(heart_df$fat_free_wt)
+hist(heart_df$chest_dim)
+hist(heart_df$hip_dim)
+hist(heart_df$thigh_dim)
+hist(heart_df$biceps_dim)
+
+```
+
+```{r, echo= F}
+
+cat("Since there are a few outliers, we should consider imputing the null values with median")
+
+```
+
+```{r impute}
+
+impute_median <- function(x) {
+  x[is.na(x)] <- median(x,na.rm = T)
+  return (x)
+}
+
+
+heart_df <- data.frame(lapply(heart_df, impute_median))
+
+```
+
+```{r validate_imputation}
+(sapply(heart_df, function(x) sum(is.na(x)))/240 )*100
+```
+
+Q1 - What criteria would you consider when selecting a training subset from the above dataset (such as balanced distribution between training and test for the treated observations) ?
+
+
+```{r, echo= F}
+cat("The training data should be a true representative of the total dataset. \n\nIt should have enough sample size to provide data to train the model efficiently.\n\nThe training dataset needs to be selected randomly to ensure it's not biased towards any group of data points.")
+```
+
+#### Question 1.2
+
+Q2 - Randomly split the dataset into test and training sets using 80% observations as training set.
+
+```{r}
+# set a seed with last four digits for my phone number 
+set.seed(54534)
+
+indexes_train <- createDataPartition(heart_df$heart_attack, p = 0.8, list = FALSE)
+
+train_df <- heart_df[indexes_train, ]
+test_df <- heart_df[-indexes_train, ]
+
+```
+
+Q2 -  Fit a simple linear regression model (full model) to predict the heart attack probability and test your model against the test set.
+
+```{r, fig.show='hold', fig.width=6, out.width= "50%"}
+hist(train_df$heart_attack)
+
+hist(test_df$heart_attack)
+
+```
+
+
+```{r Q2 Linear Regression}
+
+lm.out <- lm(formula = heart_attack ~ ., data = train_df )
+
+```
+
+
+```{r}
+
+summary(lm.out)
+
+```
+
+```{r}
+
+cat("R-squared :",round(100*(0.9368), 2),"\n\nThe global f tests suggests that the model is statistically significant with a p value less than 2.2e-16. \n\nNine variables are statistically significat at 5% significance level.\n\nAll the regressors collectively explain 93.68 % of the variation in Heart Attack.")
+
+```
+### Question 2
+
+Q2 - Explain your model and obtain the R^2 for the predictions of the test data set (i.e., a true OOS R^2).
+
+```{r}
+
+oosr2 <- function(train,test,model){
+  y_hat <- predict(model, newdata = test)
+
+  total_sum_squares <- sum((test$heart_attack-mean(train$heart_attack))**2)
+
+  residual_sum_squares <- sum((y_hat - test$heart_attack)**2)
+
+  cat("The Out of Sample R squared is :",round(100*(1 - (residual_sum_squares/total_sum_squares)),2))
+
+  }
+
+
+oosr2(train_df, test_df, lm.out)
+
+```
+### Question 2
+
+2. Explain cross-validation and highlight the problems that may be associated with a cross-validation approach.
+
+```{r, echo= F}
+
+cat("Cross-validation is a method to access the model performance effectively. \n\nThe below steps outlay the Cross-validation method. \n\n 1. Divide the data into many chuncks (Each of the chuck is called a fold)\n\n 2. Leave one fold and run the model on the rest of the folds and capture the out of sample r squared. \n\n 3. Run the model with different combinations of test and train folds.\n\n 4. Average the r-sqaured values from all the models\n\n 5. The resulting out of sample r-squared is final r-squared that is reliable.")
+
+cat("\n\nThe following are the limitations of cross validation \n\n 1. Cross validation is Computationally expensive. \n\n 2. If the sample size is small, this method may not provide reliable estimates. \n\n 3. Is only effective with cross-sectional data.")
+
+```
+
+### Question 3 
+
+Q3 - Use only the training sets from question 1 and estimate an 8-fold cross-validation to estimate the R^2 of the full model. e., use cross-validation to train (on 7/8 of the training set) and evaluate (on 1/8 of the training set).
+
+
+
+```{r}
+set.seed(1254)
+split <- trainControl(method = "cv", number = 8)
+
+cv_model <- train(heart_attack ~ ., data = train_df, trControl = split, method = "lm", na.action = na.pass)
+
+```
+
+```{r}
+
+cv_model$results[,"Rsquared"]
+
+```
+
+```{r, echo= F}
+
+cat("The validation Sample R squared values from cv are: ",(cv_model$resample$Rsquared))
+
+```
+
+```{r, echo= F}
+
+cat("The validation set r-squared from cross validation is 87.32. The out of sample r squared from question one was 90.24. This shows that the model was overfitting in that train test split and the r-squared was by chance higher at 90.24. The Cross validation out of samaple r squared is more robust and is reliable and can be used to quantify the model performance. Given the overfitting issue, we may need to cincider regulisation methods like lasso.")
+
+```
+```{r oor2 for cv}
+
+sse <- sum((test_df$heart_attack - predict(cv_model, newdata = test_df))**2)
+sst <- sum((test_df$heart_attack - mean(train_df$heart_attack))**2)
+
+cat("The out of sample R squared is ",round((1-sse/sst)*100,2))
+
+```
+
+
+### Question 4 
+
+Q4. Explain Lasso regression and how does it work. List the pros and cons associated with using it.
+
+```{r, echo= F}
+
+cat("Lasso regression is a regularization technique where the coefficients are srinked to zero based on the value of lasso parameter - lambda. Hence, Lasso regression is used for feature selection. \n\nThe cost function in least squares is modified to add a penality term. The penalit term consists of absolute beta values multiplied by lambda (the strength of regularization). When optimized for the new cost function, the lasso regression sets the beta's of non important variables to zero. \n\nPros of using Lasso -\n\n 1. Can be used as variable selection process even better than forward selection, backword selection, and step wise selection methods. \n\n 2. Powerful when there are many varables in the data \n\nCons of using Lasso - \n\n 1. Scaling can influence the outcome of lasso regression as the betas are also influenced by scalling.")
+
+
+
+```
+##### Question 5 
+
+Use again the training sets from question 1 and
+Fit a Lasso regression to predict the heart attack probability. Use cross-validation to obtain lambda_min as well as lambda_1se Explain the two resulting models. Which one would you choose?
+Compare model outputs from questions one, three, and five.
+
+```{r}
+
+x_vars <- as.matrix(train_df[, -17])
+
+
+y_var <- train_df[, "heart_attack"]
+
+
+cv_model_lasso <- glmnet::cv.glmnet(x_vars, y_var,alpha =1, nfolds = 8)
+
+val_min_lambda <- cv_model_lasso$lambda.min
+
+val_1se_lambda <- cv_model_lasso$lambda.1se
+
+model_lasso_min <- glmnet(x_vars, y_var, alpha =1,  lambda = val_min_lambda)
+
+model_lasso_1se <- glmnet(x_vars, y_var, alpha =1, lambda = val_1se_lambda)
+
+```
+
+```{r}
+plot(cv_model_lasso)
+```
+
+```{r}
+print(model_lasso_min)
+
+print(model_lasso_1se)
+
+```
+
+```{r, echo= F}
+cat("The 'best' model is clearly the one with lambda that generates minimum mean squared error. However, with just 3 % absolute decrease in r squared we can have much simpler model with just four variables. That is great tradeoff. Hence, the lambda at 1 se away is the most preferred.")
+```
+
+5.2
+
+```{r}
+
+sse <- sum((test_df$heart_attack - predict(model_lasso_min, newx = as.matrix(test_df[,c(-17)]), type = "response"))**2)
+
+
+sst <- sum((test_df$heart_attack - mean(train_df$heart_attack))**2)
+
+cat("The out of sample R squared for minimum error lambda is ",round((1-sse/sst)*100,2))
+
+
+```
+
+```{r}
+sse <- sum((test_df$heart_attack - predict(model_lasso_1se, newx = as.matrix(test_df[,c(-17)]), type = "response"))**2)
+
+
+sst <- sum((test_df$heart_attack - mean(train_df$heart_attack))**2)
+
+cat("The out of sample R squared for model at 1 se away from minimum error lambda is ",round((1-sse/sst)*100,2))
+
+```
+
+
+```{r, echo= F}
+cat("The minimum mean squared error model has an out of sample r squared of 87.62. The model at 1 sd from minimum has a out of sample r squared is 83.91. The out of sample r squared for the base model from question one is 91.36. Which may be due to overfitting (a lot of useless variables) and the model may be good by chance. The out of sample r squared from the crovalidation model is 91.36. Of all the models I prefer the model with 1 sd from minimum mean squared error of the lasso cv for its simplicity")
+
+```
+
+### Question 6
+
+```{r, echo=F}
+cat("AIC - Akaike Information Criterion is a measure of model performance.  AIC is calculated as -2 times the log-likelihood of the model, plus 2 times the number of parameters in the model (In other words, 2 times df). \n\nAICc is used when we are dealing with low number of records per df. Especially if the number of records are less than number of variables. AICc accounts for the number of records as well and when df/n is large its similar to AIC.")
+```
+
